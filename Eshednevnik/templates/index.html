@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ежедневник СевГУ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f4f7f6; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; width: 100%; }
+        
+        .day-col { 
+            background: white; 
+            border-radius: 8px; 
+            padding: 10px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            min-height: 250px; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        
+        .day-header { text-align: center; font-weight: bold; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #eee; }
+        
+        .day-today { border: 2px solid #0d6efd; background-color: #f8fbff; }
+        .day-today .day-header { color: #0d6efd; border-bottom-color: #0d6efd; }
+
+        .task-card { 
+            padding: 8px 24px 8px 8px; margin-bottom: 8px; border-radius: 6px; 
+            background: white; border: 1px solid #e0e0e0; border-left: 5px solid;
+            color: #333; cursor: grab; font-size: 0.85em; position: relative; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: opacity 0.2s;
+        }
+        .task-card:active { cursor: grabbing; }
+        .task-text { cursor: pointer; display: block; }
+        .task-delete { position: absolute; top: 50%; transform: translateY(-50%); right: 6px; cursor: pointer; font-weight: bold; color: #bbb; font-size: 1.2em; }
+        .task-delete:hover { color: #dc3545; }
+        
+        .status-green { border-left-color: #198754; }
+        .status-orange { border-left-color: #fd7e14; }
+        .status-red { border-left-color: #dc3545; }
+        .task-completed { opacity: 0.5; text-decoration: line-through; border-left-color: #6c757d !important; background-color: #f8f9fa; }
+        
+        .schedule-item { border-left: 3px solid #0d6efd; background: #f8f9fa; padding: 6px; margin-bottom: 8px; font-size: 0.85em; border-radius: 0 4px 4px 0; }
+        .add-task-btn { font-size: 0.7em; cursor: pointer; color: #0d6efd; text-decoration: underline; display: block; margin-top: 4px; }
+
+        .schedule-summary { background-color: #e9ecef; color: #495057; padding: 6px; border-radius: 6px; font-size: 0.8em; font-weight: bold; cursor: pointer; text-align: center; user-select: none; margin-bottom: 8px; }
+        .schedule-summary:hover { background-color: #dee2e6; }
+        
+        .widget-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); background: white; padding: 15px; cursor: pointer; transition: transform 0.2s; margin-bottom: 15px; }
+        .widget-card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        
+        .nav-arrow { font-size: 2.5rem; color: #aaa; background: none; border: none; padding: 0 10px; cursor: pointer; transition: color 0.2s; }
+        .nav-arrow:hover { color: #0d6efd; }
+    </style>
+</head>
+<body>
+<div class="container-fluid p-3">
+    <div class="row mb-3 align-items-center bg-white p-2 rounded shadow-sm">
+        <div class="col-md-2">
+            <h5 class="mb-0 fw-bold">📅 Ежедневник</h5>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <input type="text" id="groupSelect" class="form-control" list="groupList" placeholder="Группа...">
+                <datalist id="groupList"></datalist>
+                <button class="btn btn-primary" onclick="fetchSemesterData()">Поиск</button>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <select id="subgroupSelect" class="form-select form-select-sm" onchange="fetchSemesterData()">
+                <option value="0">Все подгруппы</option>
+                <option value="1">1 подгруппа</option>
+                <option value="2">2 подгруппа</option>
+            </select>
+        </div>
+        <div class="col-md-5 d-flex align-items-center justify-content-end">
+            <button class="btn btn-outline-primary btn-sm me-3 fw-bold shadow-sm" onclick="goToToday()">Возврат в сегодня</button>
+            <span class="fs-6 fw-bold text-secondary bg-light px-3 py-1 rounded border" id="weekDisplay"></span>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-9 col-lg-8 mb-4">
+            <div class="d-flex align-items-stretch w-100">
+                <div class="d-flex align-items-center">
+                    <button class="nav-arrow" onclick="changeWeek(-1)">&#10094;</button>
+                </div>
+                
+                <div class="calendar-grid flex-grow-1" id="calendar"></div>
+                
+                <div class="d-flex align-items-center">
+                    <button class="nav-arrow" onclick="changeWeek(1)">&#10095;</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-4">
+            <div class="widget-card sticky-top" style="top: 15px;" onclick="showStats()">
+                <h6 class="text-center mb-2 fw-bold">Общие пары</h6>
+                <div style="position: relative; height: 160px;">
+                    <canvas id="globalStatsChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="widget-card sticky-top" style="top: 240px;" onclick="showLabs()">
+                <h6 class="text-center mb-2 fw-bold">Лабораторные</h6>
+                <div style="position: relative; height: 160px;">
+                    <canvas id="labStatsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="widget-card sticky-top" style="top: 460px; max-height: 400px; overflow-y: auto; cursor: default;">
+                <h6 class="text-center mb-2 fw-bold">Темп сдачи лаб (План)</h6>
+                <div class="text-muted text-center mb-2" style="font-size: 0.7em;">Сдано / Должно быть к сегодня</div>
+                <div id="labPacingContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="statsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold">Остаток пар по предметам</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="statsContent"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="labsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold">Управление лабораторными</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="labsContent"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentBaseDate = new Date(); 
+    currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+    
+    let cachedSchedule = []; 
+    let cachedLabs = {};
+    let globalChart = null;
+    let globalLabChart = null;
+    let currentSubjectsList = []; 
+
+    function getLocalDateStr(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        fetch('/api/groups')
+            .then(r => r.json())
+            .then(groups => {
+                const list = document.getElementById("groupList");
+                if(groups && Array.isArray(groups)) {
+                    groups.forEach(g => {
+                        let name = typeof g === 'string' ? g : (g.name || g.title || JSON.stringify(g));
+                        list.innerHTML += `<option value="${name}">`;
+                    });
+                }
+            }).catch(e => console.log("Справочник групп недоступен."));
+            
+        if(localStorage.getItem('savedGroup')) {
+            document.getElementById('groupSelect').value = localStorage.getItem('savedGroup');
+            if(localStorage.getItem('savedSubgroup')) {
+                document.getElementById('subgroupSelect').value = localStorage.getItem('savedSubgroup');
+            }
+            fetchSemesterData();
+        } else {
+            renderCalendar();
+            renderCharts();
+        }
+    });
+
+    function goToToday() {
+        currentBaseDate = new Date();
+        currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+        renderCalendar();
+    }
+
+    async function fetchSemesterData() {
+        const group = document.getElementById("groupSelect").value.trim();
+        const subgroup = document.getElementById("subgroupSelect").value;
+        if(!group) return;
+
+        localStorage.setItem('savedGroup', group);
+        localStorage.setItem('savedSubgroup', subgroup);
+        
+        document.getElementById("calendar").innerHTML = "<h6 class='text-center w-100 mt-5'>Загрузка семестра...</h6>";
+
+        try {
+            let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(group)}&subgroup=${subgroup}`);
+            cachedSchedule = await res.json();
+            await updateLabsCache();
+            renderCalendar();
+            renderCharts();
+        } catch (e) {
+            document.getElementById("calendar").innerHTML = `<h6 class='text-center text-danger w-100 mt-5'>Ошибка загрузки</h6>`;
+        }
+    }
+
+    async function updateLabsCache() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group) return;
+        let res = await fetch(`/api/labs?group=${encodeURIComponent(group)}`);
+        cachedLabs = await res.json();
+    }
+
+    function renderCharts() {
+        let passed = 0;
+        let remaining = 0;
+        let todayStr = getLocalDateStr(new Date());
+
+        cachedSchedule.forEach(item => {
+            if(item.date < todayStr) passed++;
+            else remaining++;
+        });
+
+        const ctx1 = document.getElementById('globalStatsChart').getContext('2d');
+        if(globalChart) {
+            globalChart.data.datasets[0].data = [passed, remaining];
+            globalChart.update();
+        } else {
+            globalChart = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Прошло', 'Осталось'],
+                    datasets: [{
+                        data: [passed, remaining],
+                        backgroundColor: ['#dc3545', '#198754'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        let totLabs = 0;
+        let compLabs = 0;
+        for (let subj in cachedLabs) {
+            totLabs += cachedLabs[subj].total;
+            compLabs += cachedLabs[subj].completed;
+        }
+        let uncompLabs = totLabs - compLabs;
+        if (uncompLabs < 0) uncompLabs = 0;
+
+        let labData = totLabs === 0 ? [0, 1] : [compLabs, uncompLabs];
+        let labColors = totLabs === 0 ? ['#e9ecef', '#e9ecef'] : ['#198754', '#fd7e14'];
+
+        const ctx2 = document.getElementById('labStatsChart').getContext('2d');
+        if(globalLabChart) {
+            globalLabChart.data.datasets[0].data = labData;
+            globalLabChart.data.datasets[0].backgroundColor = labColors;
+            globalLabChart.update();
+        } else {
+            globalLabChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: totLabs === 0 ? ['Нет данных', ''] : ['Сдано', 'Осталось'],
+                    datasets: [{
+                        data: labData,
+                        backgroundColor: labColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        renderLabPacing();
+    }
+
+    function renderLabPacing() {
+        const container = document.getElementById('labPacingContent');
+        if (!cachedLabs || Object.keys(cachedLabs).length === 0) {
+            container.innerHTML = "<div class='text-center text-muted' style='font-size: 0.85em;'>Нет данных</div>";
+            return;
+        }
+
+        let today = new Date();
+        let expectedRatio = 0;
+        
+        let fallStart = new Date(today.getFullYear(), 8, 1); 
+        let fallEnd = new Date(today.getFullYear(), 11, 15); 
+        let springStart = new Date(today.getFullYear(), 1, 1); 
+        let springEnd = new Date(today.getFullYear(), 4, 31); 
+        
+        if (today >= fallStart && today <= new Date(today.getFullYear(), 11, 31)) {
+            if (today > fallEnd) expectedRatio = 1;
+            else expectedRatio = (today - fallStart) / (fallEnd - fallStart);
+        } else if (today >= springStart && today <= new Date(today.getFullYear(), 5, 30)) {
+            if (today > springEnd) expectedRatio = 1;
+            else expectedRatio = (today - springStart) / (springEnd - springStart);
+        } else if (today.getMonth() === 0 || today.getMonth() === 6 || today.getMonth() === 7) {
+            expectedRatio = 1; 
+        }
+
+        let html = '<div class="list-group list-group-flush">';
+        for (let subj in cachedLabs) {
+            let data = cachedLabs[subj];
+            if (data.total === 0) continue;
+            
+            let expectedCount = Math.round(data.total * expectedRatio);
+            let actualCount = data.completed;
+            
+            let statusClass = actualCount >= expectedCount ? 'text-success' : 'text-danger';
+            let icon = actualCount >= expectedCount ? '✅' : '⚠️';
+
+            html += `
+                <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
+                    <span class="text-truncate me-2" style="max-width: 65%; font-size: 0.85em;" title="${subj}">${subj}</span>
+                    <span class="fw-bold ${statusClass}" style="font-size: 0.85em; white-space: nowrap;">
+                        ${actualCount} / ${expectedCount} ${icon}
+                    </span>
+                </div>
+            `;
+        }
+        html += '</div>';
+        
+        if (html === '<div class="list-group list-group-flush"></div>') {
+            html = "<div class='text-center text-muted' style='font-size: 0.85em;'>Нет лаб для сдачи</div>";
+        }
+        container.innerHTML = html;
+    }
+
+    function changeWeek(offset) {
+        currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
+        renderCalendar();
+    }
+
+    async function renderCalendar() {
+        const cal = document.getElementById("calendar");
+        cal.innerHTML = "";
+        
+        let startStr = getLocalDateStr(currentBaseDate);
+        let endD = new Date(currentBaseDate);
+        endD.setDate(endD.getDate() + 6);
+        let endStr = getLocalDateStr(endD);
+        let realTodayStr = getLocalDateStr(new Date());
+
+        let startFormat = currentBaseDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        let endFormat = endD.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        document.getElementById("weekDisplay").textContent = `${startFormat} - ${endFormat}`;
+
+        for(let i = 0; i < 7; i++) {
+            let d = new Date(currentBaseDate);
+            d.setDate(d.getDate() + i);
+            let dateStr = getLocalDateStr(d);
+            let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+            
+            let isTodayClass = (dateStr === realTodayStr) ? "day-today" : "";
+            let daySchedule = cachedSchedule.filter(item => item.date === dateStr);
+            daySchedule.sort((a, b) => a.n - b.n); 
+            
+            let scheduleHtml = "";
+            if(daySchedule.length > 0) {
+                let startTime = daySchedule[0].time_range.split(' - ')[0];
+                let endTime = daySchedule[daySchedule.length - 1].time_range.split(' - ')[1] || '';
+                
+                scheduleHtml += `
+                    <div class="schedule-summary" onclick="toggleSchedule('${dateStr}')">
+                        🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">▼</span>
+                    </div>
+                    <div id="schedule-details-${dateStr}" style="display: none;">
+                `;
+                
+                daySchedule.forEach(item => {
+                    let safeLesson = item.lesson.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    scheduleHtml += `
+                        <div class="schedule-item">
+                            <strong>${item.time_range}</strong><br>
+                            ${item.lesson}<br>
+                            <span class="add-task-btn" onclick="createTaskFromSchedule('${item.date}', 'Сдать лабу по: ${safeLesson}')">
+                                + Создать задачу
+                            </span>
+                        </div>
+                    `;
+                });
+                scheduleHtml += `</div>`;
+            }
+
+            cal.innerHTML += `
+                <div class="day-col ${isTodayClass}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
+                    <div class="day-header">${displayDate}</div>
+                    <div class="mb-2">${scheduleHtml}</div>
+                    <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
+                    <div class="text-center mt-2">
+                        <button class="btn btn-primary btn-sm rounded-circle fw-bold shadow-sm" 
+                                style="width: 24px; height: 24px; line-height: 12px; padding: 0;" 
+                                onclick="toggleTaskInput('${dateStr}')" title="Добавить задачу">+</button>
+                    </div>
+                    <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
+                        <input type="text" id="task-input-${dateStr}" class="form-control form-control-sm" 
+                               placeholder="Enter..." 
+                               onkeypress="handleNewTask(event, '${dateStr}')" 
+                               onblur="handleTaskBlur('${dateStr}')">
+                    </div>
+                </div>
+            `;
+        }
+
+        let taskRes = await fetch(`/api/tasks?start=${startStr}&end=${endStr}`);
+        let tasks = await taskRes.json();
+        tasks.forEach(t => renderTask(t));
+    }
+
+    function toggleSchedule(dateStr) {
+        let details = document.getElementById(`schedule-details-${dateStr}`);
+        let arrow = document.getElementById(`arrow-${dateStr}`);
+        if(details.style.display === "none") {
+            details.style.display = "block";
+            arrow.textContent = "▲";
+        } else {
+            details.style.display = "none";
+            arrow.textContent = "▼";
+        }
+    }
+
+    function toggleTaskInput(dateStr) {
+        let wrap = document.getElementById(`task-input-wrap-${dateStr}`);
+        let input = document.getElementById(`task-input-${dateStr}`);
+        if(wrap.style.display === "none") {
+            wrap.style.display = "block";
+            input.focus();
+        } else {
+            wrap.style.display = "none";
+        }
+    }
+
+    function handleNewTask(e, dateStr) {
+        if(e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur(); 
+        }
+    }
+
+    function handleTaskBlur(dateStr) {
+        setTimeout(() => {
+            let input = document.getElementById(`task-input-${dateStr}`);
+            let wrap = document.getElementById(`task-input-wrap-${dateStr}`);
+            if(input && input.value.trim() !== '') {
+                createTask(dateStr, input.value.trim(), 'green');
+                input.value = '';
+            }
+            if(wrap) wrap.style.display = "none";
+        }, 150);
+    }
+
+    function createTaskFromSchedule(date, text) {
+        let decodedText = text.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+        createTask(date, decodedText, 'orange');
+    }
+
+    async function createTask(date, text, status) {
+        let res = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({date, text, status})
+        });
+        let data = await res.json();
+        renderTask({id: data.id, date, text, status});
+    }
+
+    function renderTask(task) {
+        const container = document.getElementById(`tasks-${task.date}`);
+        if(!container) return;
+        
+        let existing = document.getElementById(`task-${task.id}`);
+        if(existing) existing.remove();
+        
+        let div = document.createElement('div');
+        div.className = `task-card status-${task.status}`;
+        div.id = `task-${task.id}`;
+        div.draggable = true;
+        
+        let spanText = document.createElement('span');
+        spanText.className = 'task-text';
+        spanText.textContent = task.text;
+        
+        spanText.onclick = () => { if(task.status !== 'completed') toggleColor(task.id, task.status); };
+        
+        let spanDel = document.createElement('span');
+        spanDel.className = 'task-delete';
+        
+        if (task.status === 'completed') {
+            div.classList.add('task-completed');
+            spanDel.textContent = '🗑️'; 
+            spanDel.style.fontSize = '1em';
+        } else {
+            spanDel.textContent = '×';
+        }
+        
+        spanDel.onclick = () => handleTaskDeleteClick(task);
+        
+        div.appendChild(spanText);
+        div.appendChild(spanDel);
+        
+        div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
+        container.appendChild(div);
+    }
+
+    async function handleTaskDeleteClick(task) {
+        if (task.status !== 'completed') {
+            task.status = 'completed';
+            await fetch(`/api/tasks/${task.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({date: task.date, text: task.text, status: 'completed'})
+            });
+            renderTask(task); 
+        } else {
+            await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+            document.getElementById(`task-${task.id}`).remove(); 
+        }
+    }
+
+    async function toggleColor(id, currentStatus) {
+        let taskElement = document.getElementById(`task-${id}`);
+        let newStatus = currentStatus === 'green' ? 'orange' : (currentStatus === 'orange' ? 'red' : 'green');
+        let textNode = taskElement.querySelector('.task-text');
+        let text = textNode.textContent;
+        let dateId = taskElement.parentElement.id.replace('tasks-', '');
+
+        await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({date: dateId, text: text, status: newStatus})
+        });
+        
+        taskElement.className = `task-card status-${newStatus}`;
+        textNode.onclick = () => toggleColor(id, newStatus);
+        taskElement.ondragstart = (e) => { 
+            e.dataTransfer.setData("text/plain", JSON.stringify({id, date: dateId, text, status: newStatus})); 
+        };
+    }
+
+    function allowDrop(e) { e.preventDefault(); }
+    
+    async function drop(e, newDate) {
+        e.preventDefault();
+        let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
+        if(taskData.date === newDate) return;
+
+        await fetch(`/api/tasks/${taskData.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({date: newDate, text: taskData.text, status: taskData.status})
+        });
+
+        document.getElementById(`task-${taskData.id}`).remove();
+        taskData.date = newDate;
+        renderTask(taskData);
+    }
+
+    function showStats() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
+
+        let modal = new bootstrap.Modal(document.getElementById('statsModal'));
+        modal.show();
+        
+        let stats = {};
+        let todayStr = getLocalDateStr(new Date());
+
+        cachedSchedule.forEach(item => {
+            let subject = item.lesson;
+            let type = item.type_name;
+            
+            if (!stats[subject]) stats[subject] = {};
+            if (!stats[subject][type]) stats[subject][type] = { past: 0, future: 0 };
+            
+            if (item.date < todayStr) {
+                stats[subject][type].past++;
+            } else {
+                stats[subject][type].future++;
+            }
+        });
+        
+        let html = '<div class="row">';
+        for(let subject in stats) {
+            html += `<div class="col-md-6 mb-3"><div class="card h-100"><div class="card-header bg-light fw-bold">${subject}</div><div class="card-body">`;
+            html += `<div class="row">`;
+            for(let type in stats[subject]) {
+                let past = stats[subject][type].past;
+                let future = stats[subject][type].future;
+                html += `
+                    <div class="col-6 mb-2">
+                        <div class="border rounded p-2 text-center shadow-sm">
+                            <small class="text-muted d-block border-bottom mb-1">${type}</small>
+                            <span class="text-danger fw-bold" title="Прошло">✔ ${past}</span> | 
+                            <span class="text-success fw-bold" title="Осталось">⏳ ${future}</span>
+                        </div>
+                    </div>`;
+            }
+            html += `</div></div></div></div>`;
+        }
+        html += '</div>';
+        
+        if(Object.keys(stats).length === 0) html = "<p class='text-center'>Нет данных для выбранной группы.</p>";
+        document.getElementById('statsContent').innerHTML = html;
+    }
+
+    function renderLabsContent() {
+        let uniqueSubjects = [...new Set(cachedSchedule.map(item => item.lesson))].sort();
+        currentSubjectsList = uniqueSubjects;
+
+        let html = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted small">Внесите изменения и нажмите "Сохранить все"</span>
+                <button class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
+            </div>
+            <div class="list-group mb-3">
+        `;
+
+        uniqueSubjects.forEach((subject, idx) => {
+            let comp = cachedLabs[subject] ? cachedLabs[subject].completed : 0;
+            let tot = cachedLabs[subject] ? cachedLabs[subject].total : 0;
+            let percent = tot > 0 ? Math.round((comp / tot) * 100) : 0;
+
+            html += `
+                <div class="list-group-item">
+                    <h6 class="mb-2 fw-bold">${subject}</h6>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span style="font-size: 0.9em;">Сдано:</span>
+                        <input type="number" id="lab-comp-${idx}" class="form-control form-control-sm" style="width: 70px" value="${comp}" min="0">
+                        <span style="font-size: 0.9em;">из общих</span>
+                        <input type="number" id="lab-tot-${idx}" class="form-control form-control-sm" style="width: 70px" value="${tot}" min="0">
+                    </div>
+                    <div class="progress" style="height: 12px;">
+                        <div class="progress-bar ${percent === 100 ? 'bg-success' : 'bg-info'}" 
+                             role="progressbar" style="width: ${percent}%"></div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+            </div>
+            <div class="d-flex justify-content-end mb-2">
+                <button id="saveBottomBtn" class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
+            </div>
+        `;
+
+        if(uniqueSubjects.length === 0) html = "<p class='text-center'>Нет данных для выбранной группы.</p>";
+        document.getElementById('labsContent').innerHTML = html;
+    }
+
+    function showLabs() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
+
+        renderLabsContent();
+
+        let modalElement = document.getElementById('labsModal');
+        let modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+        modal.show();
+    }
+
+    async function saveAllLabs() {
+        const group = document.getElementById("groupSelect").value.trim();
+        let payload = [];
+        let hasErrors = false;
+
+        currentSubjectsList.forEach((subject, idx) => {
+            let compInput = document.getElementById(`lab-comp-${idx}`);
+            let totInput = document.getElementById(`lab-tot-${idx}`);
+            if(!compInput || !totInput) return;
+
+            let comp = parseInt(compInput.value) || 0;
+            let tot = parseInt(totInput.value) || 0;
+
+            if (comp > tot) {
+                comp = tot;
+                compInput.value = comp; 
+                hasErrors = true;
+            }
+
+            payload.push({
+                group: group,
+                subject: subject,
+                completed: comp,
+                total: tot
+            });
+        });
+
+        if (hasErrors) {
+            alert("Количество сданных лаб в некоторых предметах превышало общее. Значения были исправлены автоматически.");
+        }
+
+        await fetch('/api/labs', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        await updateLabsCache(); 
+        renderCharts(); 
+        renderLabsContent(); 
+        
+        let modalElement = document.getElementById('labsModal');
+        let modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    }
+</script>
+</body>
+</html>
