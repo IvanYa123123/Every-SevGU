@@ -13,6 +13,10 @@ def init_db():
         conn.execute('''CREATE TABLE IF NOT EXISTS lab_progress 
                         (group_name TEXT, subject TEXT, completed INTEGER, total INTEGER, 
                         PRIMARY KEY(group_name, subject))''')
+        # Таблица для друзей
+        conn.execute('''CREATE TABLE IF NOT EXISTS friends 
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                         name TEXT, group_name TEXT, subgroup TEXT)''')
 init_db()
 
 @app.route("/")
@@ -88,6 +92,26 @@ def update_task(task_id):
         elif request.method == "DELETE":
             conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
             return jsonify({"success": True})
+
+# === РОУТЫ ДЛЯ ДРУЗЕЙ ===
+@app.route("/api/friends", methods=["GET", "POST"])
+def manage_friends():
+    with sqlite3.connect('planner.db') as conn:
+        if request.method == "POST":
+            data = request.json
+            cursor = conn.execute("INSERT INTO friends (name, group_name, subgroup) VALUES (?, ?, ?)", 
+                                  (data['name'], data['group'], data['subgroup']))
+            return jsonify({"id": cursor.lastrowid})
+        
+        cursor = conn.execute("SELECT id, name, group_name, subgroup FROM friends")
+        friends = [{"id": row[0], "name": row[1], "group": row[2], "subgroup": row[3]} for row in cursor.fetchall()]
+        return jsonify(friends)
+
+@app.route("/api/friends/<int:friend_id>", methods=["DELETE"])
+def delete_friend(friend_id):
+    with sqlite3.connect('planner.db') as conn:
+        conn.execute("DELETE FROM friends WHERE id=?", (friend_id,))
+        return jsonify({"success": True})
 
 if __name__ == "__main__":
     app.run(debug=True)
