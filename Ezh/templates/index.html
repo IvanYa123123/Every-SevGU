@@ -4,216 +4,143 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ежедневник СевГУ</title>
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <style>
-        :root {
-            --bg-color: #f8fafc; /* slate-50 */
-            --card-bg: #ffffff;
-            --text-main: #1e293b; /* slate-800 */
-            --text-muted: #64748b; /* slate-500 */
-            --shadow-soft: 0 4px 20px rgba(0,0,0,0.03);
-            --shadow-hover: 0 10px 25px rgba(0,0,0,0.06);
-            --radius-card: 16px;
-            --radius-pill: 20px;
-            --radius-btn: 10px;
-            
-            /* Status colors (modern tags) */
-            --status-green-bg: #ecfdf5;
-            --status-green-text: #065f46;
-            --status-green-border: #d1fae5;
-            
-            --status-orange-bg: #fff7ed;
-            --status-orange-text: #9a3412;
-            --status-orange-border: #ffedd5;
-            
-            --status-red-bg: #fef2f2;
-            --status-red-text: #991b1b;
-            --status-red-border: #fee2e2;
-        }
-
         body { 
-            background-color: var(--bg-color); 
+            background-color: #f8fafc; 
             font-family: 'Inter', sans-serif;
-            color: var(--text-main);
-            padding-bottom: 40px;
+            color: #334155;
         }
-
-        .top-bar-container {
-            background: var(--card-bg);
-            border-radius: var(--radius-card);
-            box-shadow: var(--shadow-soft);
-            padding: 12px 20px;
-            margin-bottom: 20px;
-            position: sticky;
-            top: 15px;
-            z-index: 1000;
-        }
-
-        .form-control, .form-select {
-            border-radius: 8px;
-            border-color: #e2e8f0;
-            padding: 6px 12px;
-            box-shadow: none !important;
-            transition: border-color 0.2s;
-            font-size: 0.9em;
-        }
-        .form-control:focus, .form-select:focus { border-color: #6366f1; }
         
-        .btn {
-            border-radius: var(--radius-btn);
-            font-weight: 500;
-            padding: 6px 14px;
-            transition: all 0.2s;
-            font-size: 0.9em;
-        }
-        .btn-primary { background-color: #6366f1; border-color: #6366f1; }
-        .btn-primary:hover { background-color: #4f46e5; border-color: #4f46e5; }
-        .btn-outline-primary { color: #6366f1; border-color: #c7d2fe; }
-        .btn-outline-primary:hover { background-color: #e0e7ff; border-color: #c7d2fe; color: #4338ca; }
-
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; width: 100%; }
         
         .day-col { 
-            background: var(--card-bg); border-radius: 12px; padding: 12px; 
-            box-shadow: var(--shadow-soft); min-height: 280px; 
-            display: flex; flex-direction: column; border: 1px solid transparent;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .day-col:hover { box-shadow: var(--shadow-hover); }
-        
-        .day-header { 
-            text-align: center; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; 
-            border-bottom: 1px solid #f1f5f9; color: var(--text-muted); font-size: 0.85em; text-transform: uppercase;
+            background: white; 
+            border-radius: 12px; 
+            padding: 12px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+            min-height: 250px; 
+            display: flex; 
+            flex-direction: column; 
+            border: 1px solid #e2e8f0;
         }
         
-        .day-today { border: 2px solid #6366f1; background-color: #f8fafc; }
-        .day-today .day-header { color: #6366f1; border-bottom-color: #c7d2fe; font-weight: 700; }
+        .day-header { text-align: center; font-weight: 600; font-size: 0.9em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; color: #64748b; }
+        .day-today { border: 2px solid #6366f1; background-color: #eef2ff; }
+        .day-today .day-header { color: #4f46e5; border-bottom-color: #c7d2fe; }
 
         .task-card { 
-            padding: 8px 24px 8px 10px; margin-bottom: 8px; border-radius: 8px; 
-            cursor: grab; font-size: 0.8em; position: relative; font-weight: 500;
-            border: 1px solid transparent; line-height: 1.3;
+            padding: 8px 10px; margin-bottom: 8px; border-radius: 8px; 
+            background: white; border: 1px solid #e2e8f0;
+            color: #334155; cursor: grab; font-size: 0.85em; position: relative; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s;
+            display: flex; justify-content: space-between; align-items: center;
+            border-left-width: 5px;
         }
-        .task-card:active { cursor: grabbing; transform: scale(0.98); }
-        .task-text { cursor: pointer; display: block; }
-        .task-delete { 
-            position: absolute; top: 50%; transform: translateY(-50%); right: 6px; 
-            cursor: pointer; font-weight: bold; color: rgba(0,0,0,0.3); font-size: 1.1em; 
-            width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
-        }
-        .task-delete:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+        .task-card:active { cursor: grabbing; }
+        .task-text { cursor: pointer; flex-grow: 1; margin-right: 8px; }
+        .task-actions { display: flex; gap: 6px; align-items: center; }
         
-        .status-green { background-color: var(--status-green-bg); color: var(--status-green-text); border-color: var(--status-green-border); }
-        .status-orange { background-color: var(--status-orange-bg); color: var(--status-orange-text); border-color: var(--status-orange-border); }
-        .status-red { background-color: var(--status-red-bg); color: var(--status-red-text); border-color: var(--status-red-border); }
-        .task-completed { opacity: 0.6; text-decoration: line-through; background-color: #f1f5f9 !important; color: #94a3b8 !important; border-color: #e2e8f0 !important; }
+        .task-btn { cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1; transition: color 0.2s; text-decoration: none; }
+        .task-btn:hover { color: #ef4444; }
+        .task-edit:hover { color: #3b82f6; }
         
-        .schedule-item { 
-            border-left: 3px solid #6366f1; background: #f8fafc; padding: 8px 10px; 
-            margin-bottom: 8px; font-size: 0.8em; border-radius: 0 6px 6px 0; color: var(--text-main); line-height: 1.3;
-        }
-        .add-task-btn { font-size: 0.85em; cursor: pointer; color: #6366f1; display: inline-block; margin-top: 4px; font-weight: 500; transition: color 0.2s; }
-        .add-task-btn:hover { color: #4338ca; text-decoration: underline; }
+        .status-green { border-left-color: #10b981; }
+        .status-orange { border-left-color: #f59e0b; }
+        .status-red { border-left-color: #ef4444; }
+        .task-completed { opacity: 0.6; text-decoration: line-through; border-left-color: #94a3b8 !important; background-color: #f8fafc; }
+        
+        .schedule-item { border-left: 3px solid #6366f1; background: #f8fafc; padding: 8px; margin-bottom: 8px; font-size: 0.85em; border-radius: 0 6px 6px 0; }
+        .add-task-btn { font-size: 0.8em; cursor: pointer; color: #6366f1; text-decoration: none; display: inline-block; margin-top: 6px; font-weight: 500; }
+        .add-task-btn:hover { text-decoration: underline; }
 
-        .schedule-summary { 
-            background-color: #f1f5f9; color: #475569; padding: 6px 10px; border-radius: 6px; 
-            font-size: 0.8em; font-weight: 600; cursor: pointer; text-align: center; user-select: none; margin-bottom: 10px; transition: background 0.2s;
-        }
+        .schedule-summary { background-color: #f1f5f9; color: #475569; padding: 8px; border-radius: 8px; font-size: 0.8em; font-weight: 600; cursor: pointer; text-align: center; user-select: none; margin-bottom: 10px; transition: background 0.2s; }
         .schedule-summary:hover { background-color: #e2e8f0; }
         
-        .widget-card { 
-            border-radius: var(--radius-card); box-shadow: var(--shadow-soft); background: var(--card-bg); 
-            padding: 16px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; margin-bottom: 16px; border: none;
-        }
-        .widget-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-        
-        .nav-arrow { font-size: 1.8rem; color: #cbd5e1; background: none; border: none; padding: 0 10px; cursor: pointer; transition: color 0.2s, transform 0.2s; }
-        .nav-arrow:hover { color: #6366f1; transform: scale(1.1); }
+        .nav-arrow { font-size: 2rem; color: #cbd5e1; background: none; border: none; padding: 0 15px; cursor: pointer; transition: color 0.2s; }
+        .nav-arrow:hover { color: #6366f1; }
 
+        /* --- Сетка друга --- */
         .friend-col { 
-            background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 6px; 
-            padding: 6px; min-height: 60px; display: flex; flex-direction: column; transition: background 0.2s;
+            background: #ffffff; 
+            border: 1px solid #e2e8f0;
+            border-radius: 8px; 
+            padding: 8px; 
+            min-height: 90px; 
+            display: flex; 
+            flex-direction: column; 
         }
-        .friend-col:hover { background: #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.03); }
-        
         .shared-class {
-            background: var(--status-green-bg); color: var(--status-green-text); border: 1px solid var(--status-green-border);
-            padding: 4px; border-radius: 4px; margin-bottom: 4px; font-size: 0.7em; text-align: center; font-weight: 500; line-height: 1.2;
+            padding: 4px 6px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 0.75em;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            background: #dcfce7;
+            color: #166534;
         }
         .friend-day-header {
-            text-align: center; font-weight: 600; font-size: 0.7em; color: var(--text-muted);
-            margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px dashed #e2e8f0; text-transform: uppercase;
+            text-align: center; font-weight: 600; font-size: 0.75em; color: #94a3b8;
+            margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #e2e8f0;
         }
+        .friend-wrapper { border-top: 4px solid #6366f1; }
 
-        /* Compact wrapper for friends generated via JS */
-        #friendsCalendarsContainer > div {
-            border-radius: 12px !important; border: 1px solid #f1f5f9 !important; box-shadow: var(--shadow-soft) !important;
-            padding: 12px 16px 16px 16px !important; margin-bottom: 16px !important; background: white;
-        }
-
+        /* --- Полноэкранный лоадер --- */
         #globalLoader {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(248, 250, 252, 0.85); z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(4px);
+            background: rgba(255, 255, 255, 0.85); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            backdrop-filter: blur(4px);
         }
 
-        #friendTogglesDropdown .dropdown-item { cursor: pointer; border-radius: 6px; margin: 2px 8px; width: auto; font-size: 0.9em; }
-        #friendTogglesDropdown .dropdown-item:hover { background-color: #f1f5f9; }
+        /* --- Сворачиваемые виджеты --- */
+        .widget-body-wrap { overflow: hidden; transition: height 0.3s ease-out; }
         
-        .modal-content { border-radius: 12px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .modal-header { border-bottom: 1px solid #f1f5f9; }
-        .modal-footer { border-top: 1px solid #f1f5f9; }
+        /* Исправление наложения для дропдауна */
+        .controls-header { position: relative; z-index: 1050; }
     </style>
 </head>
 <body>
 
+<!-- Глобальный индикатор загрузки -->
 <div id="globalLoader" style="display: none;">
-    <div class="spinner-border" style="width: 3rem; height: 3rem; color: #6366f1;" role="status"></div>
-    <div id="loaderText" class="mt-3 fw-semibold text-secondary fs-5" style="min-height: 30px; text-align: center;">Загрузка...</div>
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+    <div id="loaderText" class="mt-3 fw-bold text-secondary fs-5">Загрузка...</div>
 </div>
 
-<!-- Toast Container for custom alerts -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055;">
-  <div id="appToast" class="toast align-items-center text-white bg-danger border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="d-flex">
-      <div class="toast-body fw-medium" id="toastBody" style="font-size: 0.9em;"></div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
-  </div>
-</div>
-
-<div class="container-fluid p-3 p-md-4">
-    <div class="top-bar-container row align-items-center mx-1">
-        <div class="col-md-3 mb-2 mb-md-0">
-            <h5 class="mb-0 fw-bold" style="color: #0f172a;"><span class="me-2 fs-5">📅</span>Ежедневник</h5>
+<div class="container-fluid p-3">
+    <!-- Шапка -->
+    <div class="row mb-3 align-items-center bg-white p-2 rounded shadow-sm border controls-header">
+        <div class="col-md-2">
+            <h5 class="mb-0 fw-bold" style="color: #6366f1;">📅 Ежедневник</h5>
         </div>
-        <div class="col-md-4 mb-2 mb-md-0">
+        <div class="col-md-3">
             <div class="input-group input-group-sm">
-                <input type="text" id="groupSelect" class="form-control" list="groupList" placeholder="Учебная группа...">
+                <input type="text" id="groupSelect" class="form-control" list="groupList" placeholder="Группа...">
                 <datalist id="groupList"></datalist>
-                <select id="subgroupSelect" class="form-select" style="max-width: 110px;" onchange="fetchSemesterData()">
-                    <option value="0">Все подгр.</option>
-                    <option value="1">1 подгр.</option>
-                    <option value="2">2 подгр.</option>
-                </select>
-                <button class="btn btn-primary" onclick="fetchSemesterData()">Найти</button>
+                <button class="btn btn-primary" style="background-color: #6366f1; border: none;" onclick="fetchSemesterData()">Найти</button>
             </div>
         </div>
-        <div class="col-md-5 d-flex align-items-center justify-content-md-end justify-content-start">
-            <button class="btn btn-outline-primary btn-sm me-3 fw-semibold" onclick="goToToday()">Сегодня</button>
-            <span class="fs-6 fw-semibold text-secondary bg-light px-3 py-1 rounded-pill border" id="weekDisplay"></span>
+        <div class="col-md-2">
+            <select id="subgroupSelect" class="form-select form-select-sm" onchange="fetchSemesterData()">
+                <option value="0">Все подгруппы</option>
+                <option value="1">1 подгруппа</option>
+                <option value="2">2 подгруппа</option>
+            </select>
+        </div>
+        <div class="col-md-5 d-flex align-items-center justify-content-end gap-3">
+            <button class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="goToToday()">Сегодня</button>
+            <select id="weekDropdown" class="form-select form-select-sm shadow-sm fw-bold" style="width: auto; cursor: pointer;" onchange="jumpToWeek(this.value)">
+                <!-- Заполняется JS -->
+            </select>
         </div>
     </div>
 
-    <div class="row px-1">
-        <!-- Main Calendar Area -->
+    <div class="row">
+        <!-- Основная область: Календарь и друзья -->
         <div class="col-xl-9 col-lg-8 mb-4">
             <div class="d-flex align-items-stretch w-100">
                 <div class="d-flex align-items-center">
@@ -221,28 +148,25 @@
                 </div>
                 
                 <div class="w-100 d-flex flex-column">
-                    <!-- Calendar Grid -->
+                    <!-- Календарь -->
                     <div class="calendar-grid flex-grow-1" id="calendar"></div>
                     
-                    <div class="mt-3 text-start d-flex align-items-center flex-wrap gap-2 mb-2 bg-white p-2 rounded-3 shadow-sm border-0" id="friendsControlsPanel">
-                        <button class="btn btn-sm btn-outline-primary fw-semibold" onclick="showAddFriendModal()">+ Добавить друга</button>
-                        <div class="vr mx-2 text-muted" style="opacity: 0.15;"></div>
+                    <!-- Панель управления друзьями -->
+                    <div class="mt-4 text-start d-flex align-items-center flex-wrap gap-2 mb-2 bg-white p-2 rounded shadow-sm border" id="friendsControlsPanel">
+                        <button class="btn btn-sm btn-outline-primary fw-bold" onclick="showAddFriendModal()">+ Добавить друга</button>
+                        <div class="vr mx-1"></div>
                         
                         <div class="dropdown d-flex align-items-center">
-                            <button class="btn btn-sm text-white dropdown-toggle fw-semibold shadow-sm" style="background: #0ea5e9; border-color: #0ea5e9;" type="button" id="friendsDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                            <button class="btn btn-sm btn-primary text-white dropdown-toggle fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
                                 Кого показывать?
                             </button>
-                            <!-- Background Loader -->
-                            <div id="friendsLoader" class="spinner-border spinner-border-sm text-info ms-3" role="status" style="display: none;"></div>
-                            
-                            <ul class="dropdown-menu shadow border-0 mt-2 p-2" aria-labelledby="friendsDropdown" id="friendTogglesDropdown" style="min-width: 250px; border-radius: 10px;">
-                                <!-- Checkboxes injected via JS -->
-                            </ul>
+                            <div id="friendsLoader" class="spinner-border spinner-border-sm text-primary ms-2" role="status" style="display: none;"></div>
+                            <ul class="dropdown-menu shadow-sm border-0" id="friendTogglesDropdown" style="min-width: 250px;"></ul>
                         </div>
                     </div>
                     
-                    <!-- Friends Calendars Wrapper -->
-                    <div id="friendsCalendarsContainer" class="d-flex flex-column mb-4"></div>
+                    <!-- Сетки друзей -->
+                    <div id="friendsCalendarsContainer" class="d-flex flex-column gap-3 mb-4"></div>
                 </div>
                 
                 <div class="d-flex align-items-center">
@@ -251,97 +175,100 @@
             </div>
         </div>
         
+        <!-- Правая панель: Виджеты (Статистика) -->
         <div class="col-xl-3 col-lg-4">
-            <!-- Global Stats Widget -->
-            <div class="widget-card sticky-top" style="top: 15px;" onclick="showStats()">
-                <h6 class="text-center mb-2 fw-bold" style="color: #334155; font-size: 0.95em;">Общие пары</h6>
-                <div style="position: relative; height: 140px;">
-                    <canvas id="globalStatsChart"></canvas>
+            <div class="sticky-top d-flex flex-column gap-3" style="top: 15px;">
+                
+                <!-- Виджет 1: Общие пары -->
+                <div class="bg-white rounded shadow-sm border p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Общие пары ℹ️</h6>
+                        <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('globalStatsBody', this)">−</button>
+                    </div>
+                    <div id="globalStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showStats()">
+                        <canvas id="globalStatsChart"></canvas>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Labs Widget -->
-            <div class="widget-card sticky-top" style="top: 230px;" onclick="showLabs()">
-                <h6 class="text-center mb-2 fw-bold" style="color: #334155; font-size: 0.95em;">Лабораторные</h6>
-                <div style="position: relative; height: 140px;">
-                    <canvas id="labStatsChart"></canvas>
+                
+                <!-- Виджет 2: Лабораторные -->
+                <div class="bg-white rounded shadow-sm border p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showLabs()">Лабораторные ℹ️</h6>
+                        <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('labStatsBody', this)">−</button>
+                    </div>
+                    <div id="labStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showLabs()">
+                        <canvas id="labStatsChart"></canvas>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Lab Pacing Widget -->
-            <div class="widget-card sticky-top" style="top: 445px; max-height: 350px; overflow-y: auto; cursor: default;">
-                <h6 class="text-center mb-1 fw-bold" style="color: #334155; font-size: 0.95em;">Темп сдачи лаб (План)</h6>
-                <div class="text-muted text-center mb-3" style="font-size: 0.7em;">Сдано / Должно быть к сегодня</div>
-                <div id="labPacingContent"></div>
+                <!-- Виджет 3: План лаб -->
+                <div class="bg-white rounded shadow-sm border p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h6 class="mb-0 fw-bold">Темп сдачи лаб</h6>
+                            <span class="text-muted" style="font-size: 0.7em;">Сдано / План к сегодня</span>
+                        </div>
+                        <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('labPacingBody', this)">−</button>
+                    </div>
+                    <div id="labPacingBody" class="widget-body-wrap" style="height: auto; max-height: 300px; overflow-y: auto;">
+                        <div id="labPacingContent"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal: Custom Confirm -->
-<div class="modal fade" id="confirmModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content">
-      <div class="modal-body text-center py-4">
-        <h6 id="confirmText" class="mb-4 text-slate-800 fw-semibold lh-base"></h6>
-        <button type="button" class="btn btn-light border btn-sm px-3 me-2 fw-medium" data-bs-dismiss="modal">Отмена</button>
-        <button type="button" class="btn btn-danger btn-sm px-3 fw-medium" id="confirmBtn">Подтвердить</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Add Friend -->
+<!-- Модалки (Добавление друга, Статистика, Лабы) -->
 <div class="modal fade" id="addFriendModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title fw-bold fs-6">Добавить друга</h6>
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold">Добавить друга</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <div class="mb-3">
-            <label class="form-label small fw-semibold text-muted mb-1">Имя (или ник)</label>
-            <input type="text" id="friendName" class="form-control">
+            <label class="form-label small">Имя (или ник)</label>
+            <input type="text" id="friendName" class="form-control form-control-sm">
         </div>
         <div class="mb-3">
-            <label class="form-label small fw-semibold text-muted mb-1">Группа</label>
-            <input type="text" id="friendGroup" class="form-control" list="groupList">
+            <label class="form-label small">Группа</label>
+            <input type="text" id="friendGroup" class="form-control form-control-sm" list="groupList">
         </div>
-        <div class="mb-2">
-            <label class="form-label small fw-semibold text-muted mb-1">Подгруппа</label>
-            <select id="friendSubgroup" class="form-select">
+        <div class="mb-3">
+            <label class="form-label small">Подгруппа</label>
+            <select id="friendSubgroup" class="form-select form-select-sm">
                 <option value="0">Все подгруппы</option>
                 <option value="1">1 подгруппа</option>
                 <option value="2">2 подгруппа</option>
             </select>
         </div>
       </div>
-      <div class="modal-footer py-2 border-top-0 justify-content-center">
-        <button type="button" class="btn btn-primary px-4 w-100" onclick="saveFriend()">Сохранить</button>
+      <div class="modal-footer py-1 border-0">
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveFriend()">Сохранить</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Stats -->
 <div class="modal fade" id="statsModal" tabindex="-1">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header py-3">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
         <h6 class="modal-title fw-bold">Остаток пар по предметам</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body bg-light" id="statsContent"></div>
+      <div class="modal-body" id="statsContent"></div>
     </div>
   </div>
 </div>
 
-<!-- Modal: Labs -->
 <div class="modal fade" id="labsModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header py-3">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
         <h6 class="modal-title fw-bold">Управление лабораторными</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
@@ -352,6 +279,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
     let currentBaseDate = new Date(); 
     currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
     
@@ -367,6 +295,7 @@
     let friendsSchedules = {};
     let visibleFriends = new Set(); 
 
+    // Лоадер
     const loadingPhrases = [
         "Грызем гранит науки...",
         "Связываемся с деканатом...",
@@ -375,55 +304,103 @@
         "Будим преподавателей...",
         "Проверяем наличие окон..."
     ];
-
-    let loaderInterval;
+    let loaderInterval = null;
 
     function showGlobalLoader() { 
-        let idx = Math.floor(Math.random() * loadingPhrases.length);
-        let el = document.getElementById('loaderText');
-        el.textContent = loadingPhrases[idx];
+        let idx = 0;
+        document.getElementById('loaderText').textContent = loadingPhrases[idx];
         document.getElementById('globalLoader').style.display = 'flex'; 
         
-        // Loop text every 3 seconds
         loaderInterval = setInterval(() => {
             idx = (idx + 1) % loadingPhrases.length;
-            el.textContent = loadingPhrases[idx];
+            document.getElementById('loaderText').textContent = loadingPhrases[idx];
         }, 3000);
     }
-    
+
     function hideGlobalLoader() { 
         document.getElementById('globalLoader').style.display = 'none'; 
-        clearInterval(loaderInterval);
+        if (loaderInterval) clearInterval(loaderInterval);
     }
 
-    function showFriendsLoader() { document.getElementById('friendsLoader').style.display = 'block'; }
-    function hideFriendsLoader() { document.getElementById('friendsLoader').style.display = 'none'; }
-
-    // Custom alerts to replace default browser prompts
-    function customAlert(msg, type='danger') {
-        let toastEl = document.getElementById('appToast');
-        let toastBody = document.getElementById('toastBody');
-        toastEl.className = `toast align-items-center text-white bg-${type} border-0 shadow-lg`;
-        toastBody.textContent = msg;
-        let toast = new bootstrap.Toast(toastEl);
-        toast.show();
+    // Сворачивание виджетов
+    function toggleWidget(bodyId, btn) {
+        let body = document.getElementById(bodyId);
+        if (body.style.height === '0px') {
+            body.style.height = body.dataset.originalHeight || '160px';
+            setTimeout(() => { body.style.overflow = 'visible'; }, 300);
+            btn.textContent = '−';
+        } else {
+            if(!body.dataset.originalHeight) body.dataset.originalHeight = body.style.height;
+            body.style.overflow = 'hidden';
+            body.style.height = '0px';
+            btn.textContent = '+';
+        }
     }
 
-    function customConfirm(msg, callback) {
-        document.getElementById('confirmText').textContent = msg;
-        let modal = new bootstrap.Modal(document.getElementById('confirmModal'));
-        let btn = document.getElementById('confirmBtn');
+    // Вспомогательные функции дат и времени
+    function getLocalDateStr(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function fixTime(str) {
+        return str ? str.replace('13:50', '14:00') : '';
+    }
+
+    function applyTimeFix(scheduleArray) {
+        if(!scheduleArray) return [];
+        scheduleArray.forEach(item => {
+            if(item.time_range) item.time_range = fixTime(item.time_range);
+        });
+        return scheduleArray;
+    }
+
+    // УМНЫЙ АЛГОРИТМ ОПРЕДЕЛЕНИЯ КОРПУСА
+    function getCampus(lesson) {
+        if (!lesson) return 'unknown';
+        let txt = lesson.toUpperCase();
         
-        // Remove old listeners to prevent multiple fires
-        let newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
+        // 1. Сначала ищем жесткую привязку: римская цифра + дефис + номер аудитории (напр. V-302, II-404)
+        // Это защищает от ложных срабатываний на номера подгрупп вроде "(I)"
+        let m = txt.match(/(?:^|[^A-ZА-Я0-9])(VII|IX|VI|V|II|I)\s*-\s*\d+/);
+        let roman = m ? m[1] : null;
         
-        newBtn.onclick = () => {
-            modal.hide();
-            callback();
-        };
-        modal.show();
+        // 2. Если дефиса нет, ищем просто обособленное слово из римских цифр
+        if (!roman) {
+            let m2 = txt.match(/(?:^|[^A-ZА-Я0-9])(VII|IX|VI|V|II|I)(?:[^A-ZА-Я0-9]|$)/);
+            if (m2) roman = m2[1];
+        }
+        
+        if (roman === 'VII' || roman === 'IX') return 'galosha';
+        if (roman === 'V' || roman === 'VI') return 'gogol';
+        if (roman === 'I' || roman === 'II') return 'univer';
+        
+        return 'unknown';
     }
+
+    // Инициализация
+    document.addEventListener("DOMContentLoaded", async () => {
+        try {
+            showGlobalLoader();
+            await ensureGroupsLoaded(); 
+
+            if(localStorage.getItem('savedGroup')) {
+                document.getElementById('groupSelect').value = localStorage.getItem('savedGroup');
+                if(localStorage.getItem('savedSubgroup')) {
+                    document.getElementById('subgroupSelect').value = localStorage.getItem('savedSubgroup');
+                }
+                await fetchSemesterData(); 
+            } else {
+                updateWeekDropdown();
+                renderCalendar();
+                renderCharts();
+                hideGlobalLoader();
+                fetchFriends();
+            }
+        } catch(e) {
+            console.error(e);
+            hideGlobalLoader();
+        }
+    });
 
     async function ensureGroupsLoaded() {
         if (groupsLoaded) return;
@@ -442,31 +419,63 @@
         } catch(e) { console.log("Справочник групп недоступен."); }
     }
 
-    function getLocalDateStr(d) {
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    // Выпадающий список недель (ТОЛЬКО 5 НЕДЕЛЬ)
+    function updateWeekDropdown() {
+        let select = document.getElementById("weekDropdown");
+        if(!select) return;
+        select.innerHTML = "";
+        
+        let realBase = new Date();
+        realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
+        realBase.setHours(0,0,0,0);
+        
+        let currBase = new Date(currentBaseDate);
+        currBase.setHours(0,0,0,0);
+        
+        // Находим смещение текущей просматриваемой недели относительно реальной "сегодняшней"
+        let currentOffset = Math.round((currBase - realBase) / (7 * 24 * 60 * 60 * 1000));
+
+        // Генерируем 5 опций: -2, -1, 0, +1, +2 относительно выбранной недели
+        for (let i = currentOffset - 2; i <= currentOffset + 2; i++) {
+            let d = new Date(realBase);
+            d.setDate(d.getDate() + (i * 7));
+            let endD = new Date(d);
+            endD.setDate(endD.getDate() + 6);
+            
+            let label = `${d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endD.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
+            
+            let option = document.createElement("option");
+            option.value = i;
+            
+            if (i === 0) {
+                option.text = `Текущая: ${label}`;
+            } else {
+                option.text = label;
+            }
+            
+            if (i === currentOffset) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
     }
 
-    document.addEventListener("DOMContentLoaded", async () => {
-        showGlobalLoader();
-        await ensureGroupsLoaded(); 
-
-        if(localStorage.getItem('savedGroup')) {
-            document.getElementById('groupSelect').value = localStorage.getItem('savedGroup');
-            if(localStorage.getItem('savedSubgroup')) {
-                document.getElementById('subgroupSelect').value = localStorage.getItem('savedSubgroup');
-            }
-            await fetchSemesterData(); 
-        } else {
-            renderCalendar();
-            renderCharts();
-            hideGlobalLoader();
-            fetchFriends(); 
-        }
-    });
+    function jumpToWeek(offsetVal) {
+        let realBase = new Date();
+        realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
+        currentBaseDate = new Date(realBase);
+        currentBaseDate.setDate(currentBaseDate.getDate() + (parseInt(offsetVal) * 7));
+        renderCalendar();
+    }
 
     function goToToday() {
         currentBaseDate = new Date();
         currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+        renderCalendar();
+    }
+    
+    function changeWeek(offset) {
+        currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
         renderCalendar();
     }
 
@@ -480,27 +489,27 @@
 
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
             hideGlobalLoader();
-            customAlert(`Учебная группа "${group}" не найдена. Пожалуйста, выберите существующую.`);
+            alert(`Учебная группа "${group}" не найдена. Выберите существующую.`);
             return;
         }
 
         localStorage.setItem('savedGroup', group);
         localStorage.setItem('savedSubgroup', subgroup);
         
-        document.getElementById("calendar").innerHTML = "<h6 class='text-center w-100 mt-5 text-muted'>Загрузка семестра...</h6>";
+        document.getElementById("calendar").innerHTML = "<h6 class='text-center w-100 mt-5'>Загрузка семестра...</h6>";
 
         try {
             let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(group)}&subgroup=${subgroup}`);
-            cachedSchedule = await res.json();
+            let data = await res.json();
+            cachedSchedule = applyTimeFix(data);
             await updateLabsCache();
             renderCalendar();
             renderCharts();
         } catch (e) {
             document.getElementById("calendar").innerHTML = `<h6 class='text-center text-danger w-100 mt-5'>Ошибка загрузки</h6>`;
-            customAlert('Не удалось загрузить расписание. Проверьте соединение.');
         }
         
-        hideGlobalLoader(); 
+        hideGlobalLoader();
         fetchFriends(); 
     }
 
@@ -511,9 +520,124 @@
         cachedLabs = await res.json();
     }
 
+    // --- ПОЛНЫЕ ФУНКЦИИ СТАТИСТИКИ (КЛИКАБЕЛЬНЫЕ) ---
+    function showStats() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
+
+        let modal = new bootstrap.Modal(document.getElementById('statsModal'));
+        modal.show();
+        
+        let stats = {};
+        let todayStr = getLocalDateStr(new Date());
+
+        cachedSchedule.forEach(item => {
+            let subject = item.lesson;
+            let type = item.type_name;
+            
+            if (!stats[subject]) stats[subject] = {};
+            if (!stats[subject][type]) stats[subject][type] = { past: 0, future: 0 };
+            
+            if (item.date < todayStr) {
+                stats[subject][type].past++;
+            } else {
+                stats[subject][type].future++;
+            }
+        });
+        
+        let html = '<div class="row">';
+        for(let subject in stats) {
+            html += `<div class="col-md-6 mb-3"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-light fw-bold" style="font-size:0.9em">${subject}</div><div class="card-body py-2">`;
+            html += `<div class="row">`;
+            for(let type in stats[subject]) {
+                let past = stats[subject][type].past;
+                let future = stats[subject][type].future;
+                html += `
+                    <div class="col-6 mb-2">
+                        <div class="border rounded p-2 text-center bg-white shadow-sm">
+                            <small class="text-muted d-block border-bottom mb-1" style="font-size:0.75em">${type}</small>
+                            <span class="text-danger fw-bold" title="Прошло">✔ ${past}</span> | 
+                            <span class="text-success fw-bold" title="Осталось">⏳ ${future}</span>
+                        </div>
+                    </div>`;
+            }
+            html += `</div></div></div></div>`;
+        }
+        html += '</div>';
+        
+        if(Object.keys(stats).length === 0) html = "<p class='text-center'>Нет данных для выбранной группы.</p>";
+        document.getElementById('statsContent').innerHTML = html;
+    }
+
+    function showLabs() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
+        renderLabsContent();
+        let modal = new bootstrap.Modal(document.getElementById('labsModal'));
+        modal.show();
+    }
+
+    function renderLabsContent() {
+        let uniqueSubjects = [...new Set(cachedSchedule.map(item => item.lesson))].sort();
+        currentSubjectsList = uniqueSubjects;
+
+        let html = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted small">Внесите изменения и нажмите "Сохранить все"</span>
+                <button class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
+            </div>
+            <div class="list-group mb-3">
+        `;
+
+        uniqueSubjects.forEach((subject, idx) => {
+            let comp = cachedLabs[subject] ? cachedLabs[subject].completed : 0;
+            let tot = cachedLabs[subject] ? cachedLabs[subject].total : 0;
+            let percent = tot > 0 ? Math.round((comp / tot) * 100) : 0;
+
+            html += `
+                <div class="list-group-item border-0 shadow-sm mb-2 rounded">
+                    <h6 class="mb-2 fw-bold" style="font-size:0.9em">${subject}</h6>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span style="font-size: 0.85em;">Сдано:</span>
+                        <input type="number" id="lab-comp-${idx}" class="form-control form-control-sm" style="width: 70px" value="${comp}" min="0">
+                        <span style="font-size: 0.85em;">из</span>
+                        <input type="number" id="lab-tot-${idx}" class="form-control form-control-sm" style="width: 70px" value="${tot}" min="0">
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar ${percent === 100 ? 'bg-success' : 'bg-info'}" 
+                             role="progressbar" style="width: ${percent}%"></div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
+        </div>`;
+        
+        if(uniqueSubjects.length === 0) html = "<p class='text-center'>Нет данных.</p>";
+        document.getElementById('labsContent').innerHTML = html;
+    }
+
+    async function saveAllLabs() {
+        const group = document.getElementById("groupSelect").value.trim();
+        let payload = [];
+        currentSubjectsList.forEach((subject, idx) => {
+            let comp = parseInt(document.getElementById(`lab-comp-${idx}`).value) || 0;
+            let tot = parseInt(document.getElementById(`lab-tot-${idx}`).value) || 0;
+            if (comp > tot) comp = tot;
+            payload.push({ group, subject, completed: comp, total: tot });
+        });
+        await fetch('/api/labs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        await updateLabsCache(); 
+        renderCharts(); 
+        let modal = bootstrap.Modal.getInstance(document.getElementById('labsModal'));
+        if(modal) modal.hide();
+    }
+
+    // --- ОТРИСОВКА ГРАФИКОВ ---
     function renderCharts() {
-        let passed = 0;
-        let remaining = 0;
+        let passed = 0, remaining = 0;
         let todayStr = getLocalDateStr(new Date());
 
         cachedSchedule.forEach(item => {
@@ -532,25 +656,22 @@
                     labels: ['Прошло', 'Осталось'],
                     datasets: [{
                         data: [passed, remaining],
-                        backgroundColor: ['#6366f1', '#e2e8f0'], // Modern Indigo and Light Slate
+                        backgroundColor: ['#6366f1', '#cbd5e1'], 
                         borderWidth: 0
                     }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
         }
 
-        let totLabs = 0;
-        let compLabs = 0;
+        let totLabs = 0, compLabs = 0;
         for (let subj in cachedLabs) {
             totLabs += cachedLabs[subj].total;
             compLabs += cachedLabs[subj].completed;
         }
-        let uncompLabs = totLabs - compLabs;
-        if (uncompLabs < 0) uncompLabs = 0;
-
+        let uncompLabs = Math.max(0, totLabs - compLabs);
         let labData = totLabs === 0 ? [0, 1] : [compLabs, uncompLabs];
-        let labColors = totLabs === 0 ? ['#f1f5f9', '#f1f5f9'] : ['#14b8a6', '#f59e0b']; // Modern Teal and Amber
+        let labColors = totLabs === 0 ? ['#f1f5f9', '#f1f5f9'] : ['#14b8a6', '#f59e0b']; 
 
         const ctx2 = document.getElementById('labStatsChart').getContext('2d');
         if(globalLabChart) {
@@ -562,79 +683,49 @@
                 type: 'doughnut',
                 data: {
                     labels: totLabs === 0 ? ['Нет данных', ''] : ['Сдано', 'Осталось'],
-                    datasets: [{
-                        data: labData,
-                        backgroundColor: labColors,
-                        borderWidth: 0
-                    }]
+                    datasets: [{ data: labData, backgroundColor: labColors, borderWidth: 0 }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
         }
-
         renderLabPacing();
     }
 
     function renderLabPacing() {
         const container = document.getElementById('labPacingContent');
         if (!cachedLabs || Object.keys(cachedLabs).length === 0) {
-            container.innerHTML = "<div class='text-center text-muted' style='font-size: 0.8em;'>Нет данных</div>";
+            container.innerHTML = "<div class='text-center text-muted small mt-2'>Нет данных</div>";
             return;
         }
-
-        let today = new Date();
-        let expectedRatio = 0;
         
-        let fallStart = new Date(today.getFullYear(), 8, 1); 
-        let fallEnd = new Date(today.getFullYear(), 11, 15); 
-        let springStart = new Date(today.getFullYear(), 1, 1); 
-        let springEnd = new Date(today.getFullYear(), 4, 31); 
-        
-        if (today >= fallStart && today <= new Date(today.getFullYear(), 11, 31)) {
-            if (today > fallEnd) expectedRatio = 1;
-            else expectedRatio = (today - fallStart) / (fallEnd - fallStart);
-        } else if (today >= springStart && today <= new Date(today.getFullYear(), 5, 30)) {
-            if (today > springEnd) expectedRatio = 1;
-            else expectedRatio = (today - springStart) / (springEnd - springStart);
-        } else if (today.getMonth() === 0 || today.getMonth() === 6 || today.getMonth() === 7) {
-            expectedRatio = 1; 
-        }
-
+        let expectedRatio = 0.5; // Упрощенный коэффициент для отображения плана
         let html = '<div class="list-group list-group-flush">';
         for (let subj in cachedLabs) {
             let data = cachedLabs[subj];
             if (data.total === 0) continue;
-            
             let expectedCount = Math.round(data.total * expectedRatio);
             let actualCount = data.completed;
-            
             let statusClass = actualCount >= expectedCount ? 'text-success' : 'text-danger';
             let icon = actualCount >= expectedCount ? '✅' : '⚠️';
 
             html += `
-                <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
-                    <span class="text-truncate me-2 text-slate-700" style="max-width: 65%; font-size: 0.8em;" title="${subj}">${subj}</span>
+                <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
+                    <span class="text-truncate me-2" style="max-width: 65%; font-size: 0.8em;" title="${subj}">${subj}</span>
                     <span class="fw-bold ${statusClass}" style="font-size: 0.8em; white-space: nowrap;">
                         ${actualCount} / ${expectedCount} ${icon}
                     </span>
-                </div>
-            `;
+                </div>`;
         }
         html += '</div>';
-        
-        if (html === '<div class="list-group list-group-flush"></div>') {
-            html = "<div class='text-center text-muted' style='font-size: 0.8em;'>Нет лаб для сдачи</div>";
-        }
         container.innerHTML = html;
     }
 
-    function changeWeek(offset) {
-        currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
-        renderCalendar();
-    }
-
+    // --- ОТРИСОВКА КАЛЕНДАРЯ И ЗАДАЧ ---
     async function renderCalendar() {
+        updateWeekDropdown();
+        
         const cal = document.getElementById("calendar");
+        if(!cal) return;
         cal.innerHTML = "";
         
         let startStr = getLocalDateStr(currentBaseDate);
@@ -643,15 +734,11 @@
         let endStr = getLocalDateStr(endD);
         let realTodayStr = getLocalDateStr(new Date());
 
-        let startFormat = currentBaseDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-        let endFormat = endD.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-        document.getElementById("weekDisplay").textContent = `${startFormat} - ${endFormat}`;
-
         for(let i = 0; i < 7; i++) {
             let d = new Date(currentBaseDate);
             d.setDate(d.getDate() + i);
             let dateStr = getLocalDateStr(d);
-            let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+            let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
             
             let isTodayClass = (dateStr === realTodayStr) ? "day-today" : "";
             let daySchedule = cachedSchedule.filter(item => item.date === dateStr);
@@ -659,12 +746,12 @@
             
             let scheduleHtml = "";
             if(daySchedule.length > 0) {
-                let startTime = daySchedule[0].time_range.split(' - ')[0];
-                let endTime = daySchedule[daySchedule.length - 1].time_range.split(' - ')[1] || '';
+                let startTime = fixTime(daySchedule[0].time_range.split(' - ')[0]);
+                let endTime = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
                 
                 scheduleHtml += `
-                    <div class="schedule-summary" onclick="toggleSchedule('${dateStr}')">
-                        🕒 ${startTime} - ${endTime} <span id="arrow-${dateStr}">▼</span>
+                    <div class="schedule-summary shadow-sm" onclick="toggleSchedule('${dateStr}')">
+                        🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">▼</span>
                     </div>
                     <div id="schedule-details-${dateStr}" style="display: none;">
                 `;
@@ -672,11 +759,11 @@
                 daySchedule.forEach(item => {
                     let safeLesson = item.lesson.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
                     scheduleHtml += `
-                        <div class="schedule-item">
-                            <strong>${item.time_range}</strong><br>
+                        <div class="schedule-item shadow-sm">
+                            <strong class="text-primary">${item.time_range}</strong><br>
                             ${item.lesson}<br>
                             <span class="add-task-btn" onclick="createTaskFromSchedule('${item.date}', 'Сдать лабу по: ${safeLesson}')">
-                                + Создать задачу
+                                + Заметка
                             </span>
                         </div>
                     `;
@@ -688,15 +775,15 @@
                 <div class="day-col ${isTodayClass}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
                     <div class="day-header">${displayDate}</div>
                     <div class="mb-2">${scheduleHtml}</div>
-                    <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 40px;"></div>
+                    <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
                     <div class="text-center mt-2">
-                        <button class="btn btn-outline-primary btn-sm rounded-circle shadow-sm fw-bold border-0 bg-light" 
-                                style="width: 26px; height: 26px; line-height: 12px; padding: 0;" 
+                        <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm" 
+                                style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
                                 onclick="toggleTaskInput('${dateStr}')" title="Добавить задачу">+</button>
                     </div>
                     <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
-                        <input type="text" id="task-input-${dateStr}" class="form-control" style="font-size: 0.8em;"
-                               placeholder="Новая задача..." 
+                        <input type="text" id="task-input-${dateStr}" class="form-control form-control-sm" 
+                               placeholder="Текст..." 
                                onkeypress="handleNewTask(event, '${dateStr}')" 
                                onblur="handleTaskBlur('${dateStr}')">
                     </div>
@@ -704,9 +791,11 @@
             `;
         }
 
-        let taskRes = await fetch(`/api/tasks?start=${startStr}&end=${endStr}`);
-        let tasks = await taskRes.json();
-        tasks.forEach(t => renderTask(t));
+        try {
+            let taskRes = await fetch(`/api/tasks?start=${startStr}&end=${endStr}`);
+            let tasks = await taskRes.json();
+            tasks.forEach(t => renderTask(t));
+        } catch(e) { console.error("Tasks load error"); }
 
         renderFriendsCalendar();
     }
@@ -715,11 +804,9 @@
         let details = document.getElementById(`schedule-details-${dateStr}`);
         let arrow = document.getElementById(`arrow-${dateStr}`);
         if(details.style.display === "none") {
-            details.style.display = "block";
-            arrow.textContent = "▲";
+            details.style.display = "block"; arrow.textContent = "▲";
         } else {
-            details.style.display = "none";
-            arrow.textContent = "▼";
+            details.style.display = "none"; arrow.textContent = "▼";
         }
     }
 
@@ -727,17 +814,12 @@
         let wrap = document.getElementById(`task-input-wrap-${dateStr}`);
         let input = document.getElementById(`task-input-${dateStr}`);
         if(wrap.style.display === "none") {
-            wrap.style.display = "block";
-            input.focus();
-        } else {
-            wrap.style.display = "none";
-        }
+            wrap.style.display = "block"; input.focus();
+        } else { wrap.style.display = "none"; }
     }
 
-    function handleNewTask(e, dateStr) {
-        if(e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-    }
-
+    function handleNewTask(e, dateStr) { if(e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }
+    
     function handleTaskBlur(dateStr) {
         setTimeout(() => {
             let input = document.getElementById(`task-input-${dateStr}`);
@@ -756,14 +838,9 @@
     }
 
     async function createTask(date, text, status) {
-        try {
-            let res = await fetch('/api/tasks', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({date, text, status})
-            });
-            let data = await res.json();
-            renderTask({id: data.id, date, text, status});
-        } catch(e) { customAlert("Не удалось создать задачу."); }
+        let res = await fetch('/api/tasks', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date, text, status}) });
+        let data = await res.json();
+        renderTask({id: data.id, date, text, status});
     }
 
     function renderTask(task) {
@@ -781,37 +858,47 @@
         let spanText = document.createElement('span');
         spanText.className = 'task-text';
         spanText.textContent = task.text;
-        
         spanText.onclick = () => { if(task.status !== 'completed') toggleColor(task.id, task.status); };
         
-        let spanDel = document.createElement('span');
-        spanDel.className = 'task-delete';
-        
-        if (task.status === 'completed') {
-            div.classList.add('task-completed');
-            spanDel.innerHTML = '&times;'; 
-            spanDel.style.fontSize = '1.2em';
-        } else {
-            spanDel.innerHTML = '&times;';
-        }
-        
-        spanDel.onclick = () => handleTaskDeleteClick(task);
-        
+        let actions = document.createElement('div');
+        actions.className = 'task-actions';
+
+        let btnEdit = document.createElement('a');
+        btnEdit.className = 'task-btn task-edit';
+        btnEdit.innerHTML = '✏️';
+        btnEdit.onclick = (e) => {
+            e.stopPropagation();
+            let newText = prompt("Изменить заметку:", task.text);
+            if(newText && newText.trim() !== '') {
+                task.text = newText.trim();
+                updateTaskRequest(task);
+            }
+        };
+
+        let btnDel = document.createElement('a');
+        btnDel.className = 'task-btn';
+        if (task.status === 'completed') { div.classList.add('task-completed'); btnDel.innerHTML = '🗑️'; } 
+        else { btnDel.innerHTML = '×'; btnDel.style.fontSize = '1.3em'; }
+        btnDel.onclick = () => handleTaskDeleteClick(task);
+
+        if (task.status !== 'completed') actions.appendChild(btnEdit);
+        actions.appendChild(btnDel);
+
         div.appendChild(spanText);
-        div.appendChild(spanDel);
-        
+        div.appendChild(actions);
         div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
         container.appendChild(div);
+    }
+
+    async function updateTaskRequest(task) {
+        await fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: task.date, text: task.text, status: task.status}) });
+        renderTask(task);
     }
 
     async function handleTaskDeleteClick(task) {
         if (task.status !== 'completed') {
             task.status = 'completed';
-            await fetch(`/api/tasks/${task.id}`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({date: task.date, text: task.text, status: 'completed'})
-            });
-            renderTask(task); 
+            await updateTaskRequest(task);
         } else {
             await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
             document.getElementById(`task-${task.id}`).remove(); 
@@ -824,187 +911,23 @@
         let textNode = taskElement.querySelector('.task-text');
         let text = textNode.textContent;
         let dateId = taskElement.parentElement.id.replace('tasks-', '');
-
-        await fetch(`/api/tasks/${id}`, {
-            method: 'PUT', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({date: dateId, text: text, status: newStatus})
-        });
         
-        taskElement.className = `task-card status-${newStatus}`;
-        textNode.onclick = () => toggleColor(id, newStatus);
-        taskElement.ondragstart = (e) => { 
-            e.dataTransfer.setData("text/plain", JSON.stringify({id, date: dateId, text, status: newStatus})); 
-        };
+        let task = {id, date: dateId, text, status: newStatus};
+        await updateTaskRequest(task);
     }
 
     function allowDrop(e) { e.preventDefault(); }
-    
     async function drop(e, newDate) {
         e.preventDefault();
         let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
         if(taskData.date === newDate) return;
-
-        await fetch(`/api/tasks/${taskData.id}`, {
-            method: 'PUT', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({date: newDate, text: taskData.text, status: taskData.status})
-        });
-
-        let oldEl = document.getElementById(`task-${taskData.id}`);
-        if(oldEl) oldEl.remove();
         taskData.date = newDate;
-        renderTask(taskData);
+        await updateTaskRequest(taskData);
     }
 
-    function showStats() {
-        const group = document.getElementById("groupSelect").value.trim();
-        if(!group || cachedSchedule.length === 0) {
-            customAlert("Сначала загрузите расписание!", 'warning');
-            return;
-        }
-
-        let modal = new bootstrap.Modal(document.getElementById('statsModal'));
-        modal.show();
-        
-        let stats = {};
-        let todayStr = getLocalDateStr(new Date());
-
-        cachedSchedule.forEach(item => {
-            let subject = item.lesson;
-            let type = item.type_name;
-            
-            if (!stats[subject]) stats[subject] = {};
-            if (!stats[subject][type]) stats[subject][type] = { past: 0, future: 0 };
-            
-            if (item.date < todayStr) stats[subject][type].past++;
-            else stats[subject][type].future++;
-        });
-        
-        let html = '<div class="row">';
-        for(let subject in stats) {
-            html += `<div class="col-md-6 mb-3"><div class="card h-100 shadow-sm border-0"><div class="card-header bg-white fw-bold py-2 border-bottom-0" style="font-size: 0.9em;">${subject}</div><div class="card-body py-2">`;
-            html += `<div class="row">`;
-            for(let type in stats[subject]) {
-                let past = stats[subject][type].past;
-                let future = stats[subject][type].future;
-                html += `
-                    <div class="col-6 mb-2">
-                        <div class="bg-light rounded p-2 text-center h-100">
-                            <small class="text-muted d-block border-bottom mb-1 pb-1" style="font-size: 0.75em;">${type}</small>
-                            <span class="text-secondary fw-bold" style="font-size: 0.85em;" title="Прошло">✔ ${past}</span> <span class="text-muted mx-1">|</span>
-                            <span class="text-primary fw-bold" style="font-size: 0.85em;" title="Осталось">⏳ ${future}</span>
-                        </div>
-                    </div>`;
-            }
-            html += `</div></div></div></div>`;
-        }
-        html += '</div>';
-        
-        if(Object.keys(stats).length === 0) html = "<p class='text-center text-muted'>Нет данных для выбранной группы.</p>";
-        document.getElementById('statsContent').innerHTML = html;
-    }
-
-    function renderLabsContent() {
-        let uniqueSubjects = [...new Set(cachedSchedule.map(item => item.lesson))].sort();
-        currentSubjectsList = uniqueSubjects;
-
-        let html = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <span class="text-muted small">Внесите изменения и сохраните</span>
-                <button class="btn btn-sm btn-primary px-3 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
-            </div>
-            <div class="list-group mb-3 border-0">
-        `;
-
-        uniqueSubjects.forEach((subject, idx) => {
-            let comp = cachedLabs[subject] ? cachedLabs[subject].completed : 0;
-            let tot = cachedLabs[subject] ? cachedLabs[subject].total : 0;
-            let percent = tot > 0 ? Math.round((comp / tot) * 100) : 0;
-
-            html += `
-                <div class="list-group-item border-0 mb-2 rounded shadow-sm py-2">
-                    <h6 class="mb-2 fw-semibold text-slate-800" style="font-size: 0.9em;">${subject}</h6>
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="text-muted" style="font-size: 0.8em;">Сдано:</span>
-                        <input type="number" id="lab-comp-${idx}" class="form-control form-control-sm text-center" style="width: 60px; font-size: 0.85em;" value="${comp}" min="0">
-                        <span class="text-muted mx-1" style="font-size: 0.8em;">из общих</span>
-                        <input type="number" id="lab-tot-${idx}" class="form-control form-control-sm text-center" style="width: 60px; font-size: 0.85em;" value="${tot}" min="0">
-                    </div>
-                    <div class="progress rounded-pill" style="height: 6px;">
-                        <div class="progress-bar ${percent === 100 ? 'bg-success' : 'bg-info'}" style="width: ${percent}%; background-color: #14b8a6 !important;"></div>
-                    </div>
-                </div>
-            `;
-        });
-
-        html += `
-            </div>
-            <div class="d-flex justify-content-end mb-1 mt-2">
-                <button class="btn btn-sm btn-primary px-3 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
-            </div>
-        `;
-
-        if(uniqueSubjects.length === 0) html = "<p class='text-center text-muted'>Нет данных для выбранной группы.</p>";
-        document.getElementById('labsContent').innerHTML = html;
-    }
-
-    function showLabs() {
-        const group = document.getElementById("groupSelect").value.trim();
-        if(!group || cachedSchedule.length === 0) {
-            customAlert("Сначала загрузите расписание!", 'warning');
-            return;
-        }
-        renderLabsContent();
-        let modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('labsModal'));
-        modal.show();
-    }
-
-    async function saveAllLabs() {
-        const group = document.getElementById("groupSelect").value.trim();
-        let payload = [];
-        let hasErrors = false;
-
-        currentSubjectsList.forEach((subject, idx) => {
-            let compInput = document.getElementById(`lab-comp-${idx}`);
-            let totInput = document.getElementById(`lab-tot-${idx}`);
-            if(!compInput || !totInput) return;
-
-            let comp = parseInt(compInput.value) || 0;
-            let tot = parseInt(totInput.value) || 0;
-
-            if (comp > tot) {
-                comp = tot;
-                compInput.value = comp; 
-                hasErrors = true;
-            }
-
-            payload.push({ group: group, subject: subject, completed: comp, total: tot });
-        });
-
-        if (hasErrors) {
-            customAlert("Количество сданных лаб превышало общее. Значения исправлены.", 'warning');
-        }
-
-        try {
-            await fetch('/api/labs', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-            await updateLabsCache(); 
-            renderCharts(); 
-            renderLabsContent(); 
-            
-            let modal = bootstrap.Modal.getInstance(document.getElementById('labsModal'));
-            if (modal) modal.hide();
-            
-            if(!hasErrors) customAlert("Данные сохранены успешно!", "success");
-        } catch (e) {
-            customAlert("Ошибка сохранения", "danger");
-        }
-    }
-
+    // --- ЛОГИКА ДРУЗЕЙ ---
     async function fetchFriends() {
-        showFriendsLoader(); 
-        
+        document.getElementById('friendsLoader').style.display = 'block';
         try {
             let res = await fetch('/api/friends');
             friendsList = await res.json();
@@ -1018,24 +941,20 @@
         dropdownMenu.innerHTML = '';
         
         if(friendsList.length === 0) {
-            dropdownMenu.innerHTML = '<li><span class="dropdown-item text-muted small border-0">Нет добавленных друзей</span></li>';
+            dropdownMenu.innerHTML = '<li><span class="dropdown-item text-muted small">Нет друзей</span></li>';
         } else {
-            dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold border-0" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li>
-                                       <li><hr class="dropdown-divider mx-3 my-1"></li>`;
-            
+            dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider"></li>`;
             friendsList.forEach(f => {
                 let isChecked = visibleFriends.has(f.id) ? 'checked' : '';
-                let safeName = JSON.stringify(f.name).replace(/"/g, '&quot;');
                 dropdownMenu.innerHTML += `
                     <li>
-                        <div class="dropdown-item d-flex justify-content-between align-items-center py-1">
+                        <div class="dropdown-item d-flex justify-content-between align-items-center">
                             <div class="form-check m-0 flex-grow-1" style="cursor: pointer;" onclick="toggleFriendVisibility(${f.id})">
-                                <input class="form-check-input" type="checkbox" id="check-friend-${f.id}" ${isChecked} style="pointer-events: none; cursor: pointer;">
-                                <label class="form-check-label fw-semibold" style="cursor: pointer; color: #334155; font-size: 0.95em;">
-                                    ${f.name} <span class="text-muted fw-normal ms-1" style="font-size: 0.85em;">(${f.group}${f.subgroup !== '0' ? '-' + f.subgroup : ''})</span>
+                                <input class="form-check-input" type="checkbox" id="check-friend-${f.id}" ${isChecked} style="pointer-events: none;">
+                                <label class="form-check-label fw-bold" style="cursor: pointer;">
+                                    ${f.name} <span class="text-muted small fw-normal">(${f.group})</span>
                                 </label>
                             </div>
-                            <button class="btn btn-sm text-danger p-0 ms-2 rounded-circle" style="background: none; border: none; font-size: 1.1em;" title="Удалить" onclick="event.stopPropagation(); deleteFriend(${f.id}, ${safeName})">&times;</button>
                         </div>
                     </li>
                 `;
@@ -1044,21 +963,18 @@
         
         await fetchAllFriendsSchedules();
         renderFriendsCalendar();
-        hideFriendsLoader(); 
+        document.getElementById('friendsLoader').style.display = 'none';
     }
 
     function toggleFriendVisibility(id) {
-        if (visibleFriends.has(id)) visibleFriends.delete(id);
-        else visibleFriends.add(id);
-        
-        let checkbox = document.getElementById(`check-friend-${id}`);
-        if(checkbox) checkbox.checked = visibleFriends.has(id);
-        
+        visibleFriends.has(id) ? visibleFriends.delete(id) : visibleFriends.add(id);
+        let cb = document.getElementById(`check-friend-${id}`);
+        if(cb) cb.checked = visibleFriends.has(id);
         renderFriendsCalendar();
     }
-
+    
     function hideAllFriends(e) {
-        if (e) e.preventDefault();
+        if(e) e.preventDefault();
         visibleFriends.clear();
         document.querySelectorAll('input[id^="check-friend-"]').forEach(cb => cb.checked = false);
         renderFriendsCalendar();
@@ -1069,58 +985,29 @@
             if (!friendsSchedules[friend.id]) {
                 try {
                     let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
-                    friendsSchedules[friend.id] = await res.json();
+                    let data = await res.json();
+                    friendsSchedules[friend.id] = applyTimeFix(data);
                 } catch (e) { friendsSchedules[friend.id] = []; }
             }
         }
     }
 
-    function showAddFriendModal() {
-        let modal = new bootstrap.Modal(document.getElementById('addFriendModal'));
-        modal.show();
-    }
+    function showAddFriendModal() { new bootstrap.Modal(document.getElementById('addFriendModal')).show(); }
 
     async function saveFriend() {
         let name = document.getElementById('friendName').value.trim();
         let group = document.getElementById('friendGroup').value.trim();
         let subgroup = document.getElementById('friendSubgroup').value;
+        if (!name || !group) return alert("Введите имя и группу");
         
-        if (!name || !group) return customAlert("Введите имя и группу друга", "warning");
-
         await ensureGroupsLoaded(); 
-
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
-            return customAlert(`Группа "${group}" не найдена. Проверьте правильность!`, "danger");
+            return alert("Такой группы нет. Проверьте правильность.");
         }
 
-        showFriendsLoader();
-        try {
-            await fetch('/api/friends', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name, group, subgroup})
-            });
-            
-            let modal = bootstrap.Modal.getInstance(document.getElementById('addFriendModal'));
-            modal.hide();
-            
-            document.getElementById('friendName').value = '';
-            document.getElementById('friendGroup').value = '';
-            document.getElementById('friendSubgroup').value = '0';
-
-            await fetchFriends();
-        } catch(e) {
-            hideFriendsLoader();
-            customAlert("Ошибка сохранения", "danger");
-        }
-    }
-
-    function deleteFriend(id, name) {
-        customConfirm(`Удалить друга "${name}" из списка?`, async () => {
-            await fetch(`/api/friends/${id}`, { method: 'DELETE' });
-            visibleFriends.delete(id);
-            delete friendsSchedules[id];
-            await fetchFriends();
-        });
+        await fetch('/api/friends', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, group, subgroup}) });
+        bootstrap.Modal.getInstance(document.getElementById('addFriendModal')).hide();
+        await fetchFriends();
     }
 
     function renderFriendsCalendar() {
@@ -1128,36 +1015,25 @@
         if (!container) return;
         container.innerHTML = "";
         
-        if (!friendsList || friendsList.length === 0) {
-            container.innerHTML = `<div class="text-center text-muted small py-3 bg-white rounded-4 shadow-sm border">Друзья не добавлены — нажмите «+ Добавить друга».</div>`;
-            return;
-        }
-        
-        let anyVisible = false;
+        if (!friendsList || friendsList.length === 0) return;
         
         friendsList.forEach(friend => {
             if (!visibleFriends.has(friend.id)) return;
-            anyVisible = true;
             
             let friendSched = friendsSchedules[friend.id] || [];
-            
             let wrapper = document.createElement('div');
-            // COMPACT LAYOUT IMPLEMENTATION
+            wrapper.className = "friend-wrapper bg-white rounded shadow-sm px-2 pb-2 pt-1";
             
-            // Header row instead of absolute badge
             let header = document.createElement('div');
-            header.className = "d-flex justify-content-between align-items-center border-bottom pb-2 mb-2";
-            header.innerHTML = `<h6 class="mb-0 fw-bold text-slate-800"><span class="fs-6 me-1">👤</span> ${friend.name} <span class="text-muted fw-normal" style="font-size: 0.85em;">(${friend.group}${friend.subgroup !== '0' ? '-' + friend.subgroup : ''})</span></h6>`;
+            header.className = "fw-bold text-primary mb-2 ps-1 pt-1";
+            header.innerHTML = `👤 ${friend.name} <span class="text-muted small fw-normal">(${friend.group})</span>`;
             wrapper.appendChild(header);
             
             let grid = document.createElement('div');
             grid.className = "calendar-grid w-100";
             
-            let gridHtml = "";
-            
             for(let i = 0; i < 7; i++) {
-                let d = new Date(currentBaseDate);
-                d.setDate(d.getDate() + i);
+                let d = new Date(currentBaseDate); d.setDate(d.getDate() + i);
                 let dateStr = getLocalDateStr(d);
                 let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
                 
@@ -1167,50 +1043,45 @@
                 let myDaySchedule = cachedSchedule.filter(item => item.date === dateStr);
                 myDaySchedule.sort((a, b) => a.n - b.n);
                 
-                let html = `<div class="friend-col">`;
-                html += `<div class="friend-day-header">${displayDate}</div>`;
+                let html = `<div class="friend-col"><div class="friend-day-header">${displayDate}</div>`;
                 
                 if (daySchedule.length > 0) {
-                    let fStart = daySchedule[0].time_range.split(' - ')[0];
-                    let fEnd = daySchedule[daySchedule.length - 1].time_range.split(' - ')[1] || '';
+                    let fStart = fixTime(daySchedule[0].time_range.split(' - ')[0]);
+                    let fEnd = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
+                    let fCampStart = getCampus(daySchedule[0].lesson);
+                    let fCampEnd = getCampus(daySchedule[daySchedule.length - 1].lesson);
                     
-                    html += `<div class="fw-bold mb-1 text-center" style="font-size: 0.75em; color: #6366f1;">🕒 ${fStart} - ${fEnd}</div>`;
+                    html += `<div class="fw-bold text-primary mb-2 text-center border-bottom pb-1" style="font-size: 0.8em;">🕒 ${fStart} - ${fEnd}</div>`;
                     
-                    let myStart = myDaySchedule.length > 0 ? myDaySchedule[0].time_range.split(' - ')[0] : null;
-                    let myEnd = myDaySchedule.length > 0 ? (myDaySchedule[myDaySchedule.length - 1].time_range.split(' - ')[1] || '') : null;
-                    
-                    if (myStart && fStart === myStart) { html += `<div class="shared-class fw-bold">🏃 Начинаем вместе в ${fStart}</div>`; }
-                    if (myEnd && fEnd && fEnd === myEnd) { html += `<div class="shared-class fw-bold">🏡 Заканчиваем вместе в ${fEnd}</div>`; }
-                    
-                    let sharedLessonsFound = false;
-                    daySchedule.forEach(fItem => {
-                        let match = myDaySchedule.find(mItem => mItem.n === fItem.n && mItem.lesson === fItem.lesson);
-                        if (match) {
-                            let safeLesson = match.lesson.replace(/"/g, '&quot;');
-                            html += `<div class="shared-class" title="${safeLesson}">🤝 ${match.time_range.split(' - ')[0]} общ. пара</div>`;
-                            sharedLessonsFound = true;
+                    let myStart = myDaySchedule.length > 0 ? fixTime(myDaySchedule[0].time_range.split(' - ')[0]) : null;
+                    let myEnd = myDaySchedule.length > 0 ? fixTime(myDaySchedule[myDaySchedule.length - 1].time_range.split(' - ')[1]) : null;
+                    let myCampStart = myDaySchedule.length > 0 ? getCampus(myDaySchedule[0].lesson) : 'unknown';
+                    let myCampEnd = myDaySchedule.length > 0 ? getCampus(myDaySchedule[myDaySchedule.length - 1].lesson) : 'unknown';
+
+                    if (myStart && fStart === myStart) {
+                        if (fCampStart !== 'unknown' && myCampStart !== 'unknown' && fCampStart !== myCampStart) {
+                            html += `<div class="shared-class bg-danger text-white fw-bold">🚨 В ${fStart} разные корпуса!</div>`;
+                        } else {
+                            html += `<div class="shared-class text-success fw-bold border border-success">🏃 Начинаем вместе в ${fStart}</div>`;
                         }
-                    });
+                    }
                     
-                    if (!sharedLessonsFound && !(myStart && fStart === myStart) && !(myEnd && fEnd && fEnd === myEnd)) {
-                        html += `<div class="text-muted text-center mt-1" style="font-size: 0.7em;">Совпадений нет</div>`;
+                    if (myEnd && fEnd === myEnd) {
+                        if (fCampEnd !== 'unknown' && myCampEnd !== 'unknown' && fCampEnd !== myCampEnd) {
+                            html += `<div class="shared-class bg-danger text-white fw-bold">🚨 Заканчиваем в ${fEnd}, но разные корпуса!</div>`;
+                        } else {
+                            html += `<div class="shared-class fw-bold border border-success">🏡 Заканчиваем вместе в ${fEnd}</div>`;
+                        }
                     }
                 } else {
-                    html += `<div class="text-muted text-center mt-2" style="font-size: 0.75em;">Выходной</div>`;
+                    html += `<div class="text-muted text-center mt-2" style="font-size: 0.8em;">Выходной</div>`;
                 }
-                
                 html += `</div>`;
-                gridHtml += html;
+                grid.innerHTML += html;
             }
-            
-            grid.innerHTML = gridHtml;
             wrapper.appendChild(grid);
             container.appendChild(wrapper);
         });
-        
-        if (!anyVisible) {
-            container.innerHTML = `<div class="text-center text-muted small py-3 bg-white rounded-4 shadow-sm border">Выберите друзей в панели «Кого показывать?», чтобы сравнить расписание.</div>`;
-        }
     }
 </script>
 </body>
