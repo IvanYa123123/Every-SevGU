@@ -32,18 +32,37 @@
         .day-today .day-header { color: #4f46e5; border-bottom-color: #c7d2fe; }
 
         .task-card { 
-            padding: 8px 10px; margin-bottom: 8px; border-radius: 8px; 
+            padding: 8px 10px 6px 10px; margin-bottom: 8px; border-radius: 8px; 
             background: white; border: 1px solid #e2e8f0;
             color: #334155; cursor: grab; font-size: 0.85em; position: relative; 
             box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s;
-            display: flex; justify-content: space-between; align-items: center;
             border-left-width: 5px;
+            display: flex; 
+            flex-direction: column; /* Располагаем текст и кнопки друг под другом */
         }
         .task-card:active { cursor: grabbing; }
-        .task-text { cursor: pointer; flex-grow: 1; margin-right: 8px; }
-        .task-actions { display: flex; gap: 6px; align-items: center; }
         
-        .task-btn { cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1; transition: color 0.2s; text-decoration: none; }
+        .task-text { 
+            cursor: pointer; 
+            width: 100%; 
+            white-space: pre-wrap; 
+            overflow-wrap: break-word; 
+            word-break: break-word; /* Возвращаем умный перенос длинных слов и ссылок */
+            display: block; /* Гарантируем правильное поведение блока внутри колонки */
+        }
+        
+        .task-actions { 
+            display: flex; 
+            gap: 12px; /* Расстояние между карандашом и крестиком */
+            align-self: flex-end; /* Прижимаем блок с кнопками к правому нижнему краю */
+            margin-top: 8px; /* Отступ от текста сверху */
+        }
+        
+        .task-btn { 
+            cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1; 
+            transition: color 0.2s; text-decoration: none; 
+            padding: 4px; /* Оставляем невидимый хитбокс для удобного нажатия */
+        }
         .task-btn:hover { color: #ef4444; }
         .task-edit:hover { color: #3b82f6; }
         
@@ -86,7 +105,13 @@
             text-align: center; font-weight: 600; font-size: 0.75em; color: #94a3b8;
             margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #e2e8f0;
         }
-        .friend-wrapper { border-top: 4px solid #6366f1; }
+        .friend-wrapper { border-top: 4px solid #6366f1; transition: opacity 0.15s, border-color 0.15s; }
+        .friend-wrapper.dragging { opacity: 0.35; }
+        .friend-wrapper.drag-over { border-top-color: #f59e0b !important; background-color: #fffbeb; }
+        .friend-drag-handle { cursor: grab; user-select: none; color: #cbd5e1; margin-right: 6px; font-weight: bold; letter-spacing: -2px; font-size: 1.1em; }
+        .friend-drag-handle:active { cursor: grabbing; }
+        .friend-drag-handle:hover { color: #6366f1; }
+        .friend-header-row { display: flex; align-items: center; }
 
         /* --- Полноэкранный лоадер --- */
         #globalLoader {
@@ -99,11 +124,88 @@
         /* --- Сворачиваемые виджеты --- */
         .widget-body-wrap { overflow: hidden; transition: height 0.3s ease-out; }
         
-        /* Исправление наложения для дропдауна */
-        .controls-header { position: relative; z-index: 1050; }
+        /* Закрепляем шапку при прокрутке */
+        .controls-header { position: sticky; top: 15px; z-index: 1050; }
+
+        /* --- Прокручиваемый список недель --- */
+        .scrollable-weeks {
+            max-height: 320px;
+            overflow-y: auto;
+            min-width: 300px;
+            padding: 4px 0;
+        }
+        .scrollable-weeks::-webkit-scrollbar { width: 8px; }
+        .scrollable-weeks::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .scrollable-weeks::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .scrollable-weeks::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .scrollable-weeks .dropdown-item.active { background-color: #6366f1; color: white; font-weight: 600; }
+
+        /* --- Автокомплит групп (T9) --- */
+        .autocomplete-list {
+            position: fixed;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+            max-height: 320px;
+            overflow-y: auto;
+            z-index: 11000;
+            display: none;
+            padding: 4px 0;
+        }
+        .autocomplete-list::-webkit-scrollbar { width: 8px; }
+        .autocomplete-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .autocomplete-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .autocomplete-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .autocomplete-item {
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 0.88em;
+            color: #334155;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.1s;
+        }
+        .autocomplete-item:hover,
+        .autocomplete-item.active {
+            background: #eef2ff;
+            color: #4f46e5;
+        }
+        .autocomplete-item b { color: #4f46e5; font-weight: 700; }
+
+        .autocomplete-add {
+            background: #f0fdf4;
+            color: #166534;
+            font-weight: 600;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 2px;
+        }
+        .autocomplete-add:hover,
+        .autocomplete-add.active {
+            background: #dcfce7;
+            color: #14532d;
+        }
+        .autocomplete-empty {
+            color: #94a3b8;
+            cursor: default;
+            font-style: italic;
+            padding: 10px 14px;
+            text-align: center;
+        }
+        .autocomplete-empty:hover { background: transparent; }
     </style>
 </head>
 <body>
+
+<!-- Уведомление об обновлении данных -->
+<div id="updateNotification" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11000; display: none;">
+    <div class="bg-success text-white px-4 py-2 rounded shadow-sm fw-bold d-flex align-items-center gap-2" style="opacity: 0.95;">
+        <span style="font-size: 1.2em;">🔄</span>
+        <span id="updateNotificationText">Расписание обновлено</span>
+    </div>
+</div>
 
 <!-- Глобальный индикатор загрузки -->
 <div id="globalLoader" style="display: none;">
@@ -115,12 +217,14 @@
     <!-- Шапка -->
     <div class="row mb-3 align-items-center bg-white p-2 rounded shadow-sm border controls-header">
         <div class="col-md-2">
-            <h5 class="mb-0 fw-bold" style="color: #6366f1;">📅 Ежедневник</h5>
+            <h5 class="mb-0 fw-bold d-flex align-items-center" style="color: #6366f1; letter-spacing: -0.5px;">
+                <span style="font-size: 2.2rem; line-height: 0.5; margin-right: 0px; margin-left: -5px;">🦔</span>
+                <span>дневник</span>
+            </h5>
         </div>
         <div class="col-md-3">
             <div class="input-group input-group-sm">
-                <input type="text" id="groupSelect" class="form-control" list="groupList" placeholder="Группа...">
-                <datalist id="groupList"></datalist>
+                <input type="text" id="groupSelect" class="form-control" placeholder="Начните вводить группу..." autocomplete="off">
                 <button class="btn btn-primary" style="background-color: #6366f1; border: none;" onclick="fetchSemesterData()">Найти</button>
             </div>
         </div>
@@ -132,10 +236,41 @@
             </select>
         </div>
         <div class="col-md-5 d-flex align-items-center justify-content-end gap-3">
+            <!-- Меню настроек видимости -->
+            <div class="dropdown me-2">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                    👁 Настройки видимости
+                </button>
+                <ul class="dropdown-menu shadow-sm p-3 border-0" style="min-width: 240px;">
+                    <li>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="toggleTeacher" checked onchange="updateDisplayPrefs()">
+                            <label class="form-check-label small fw-bold text-muted" for="toggleTeacher" style="cursor: pointer;">ФИО преподавателей</label>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="toggleLocation" checked onchange="updateDisplayPrefs()">
+                            <label class="form-check-label small fw-bold text-muted" for="toggleLocation" style="cursor: pointer;">Номера аудиторий</label>
+                        </div>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggleFriends" checked onchange="updateDisplayPrefs()">
+                            <label class="form-check-label small fw-bold text-muted" for="toggleFriends" style="cursor: pointer;">Подробные пары друзей</label>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
             <button class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="goToToday()">Сегодня</button>
-            <select id="weekDropdown" class="form-select form-select-sm shadow-sm fw-bold" style="width: auto; cursor: pointer;" onchange="jumpToWeek(this.value)">
-                <!-- Заполняется JS -->
-            </select>
+            <div class="dropdown">
+                <button class="btn btn-outline-primary btn-sm dropdown-toggle fw-bold shadow-sm" type="button" id="weekDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" style="min-width: 200px;">
+                    📅 Неделя
+                </button>
+                <ul class="dropdown-menu scrollable-weeks shadow-sm border" id="weekDropdownMenu" aria-labelledby="weekDropdownBtn"></ul>
+            </div>
         </div>
     </div>
 
@@ -182,7 +317,7 @@
                 <!-- Виджет 1: Общие пары -->
                 <div class="bg-white rounded shadow-sm border p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Общие пары ℹ️</h6>
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Общие пары</h6>
                         <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('globalStatsBody', this)">−</button>
                     </div>
                     <div id="globalStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showStats()">
@@ -193,7 +328,7 @@
                 <!-- Виджет 2: Лабораторные -->
                 <div class="bg-white rounded shadow-sm border p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showLabs()">Лабораторные ℹ️</h6>
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showLabs()">Лабораторные</h6>
                         <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('labStatsBody', this)">−</button>
                     </div>
                     <div id="labStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showLabs()">
@@ -235,7 +370,7 @@
         </div>
         <div class="mb-3">
             <label class="form-label small">Группа</label>
-            <input type="text" id="friendGroup" class="form-control form-control-sm" list="groupList">
+            <input type="text" id="friendGroup" class="form-control form-control-sm" placeholder="Начните вводить..." autocomplete="off">
         </div>
         <div class="mb-3">
             <label class="form-label small">Подгруппа</label>
@@ -243,6 +378,12 @@
                 <option value="0">Все подгруппы</option>
                 <option value="1">1 подгруппа</option>
                 <option value="2">2 подгруппа</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Папка (группировка)</label>
+            <select id="friendCategory" class="form-control form-control-sm" onchange="handleCategorySelect(this)">
+                <!-- Заполняется через JS -->
             </select>
         </div>
       </div>
@@ -277,6 +418,44 @@
   </div>
 </div>
 
+<!-- Модальное окно настроек предмета -->
+<div class="modal fade" id="subjectSettingsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold">Настройка предмета</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="origSubjectName">
+        <div class="mb-3">
+            <label class="form-label small">Оригинальное название</label>
+            <div id="subjectOrigNameDisplay" class="text-muted small fw-bold mb-2"></div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Свое название (оставьте пустым для оригинала)</label>
+            <input type="text" id="subjectCustomName" class="form-control form-control-sm" placeholder="Например: Матеша">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Глобальное ФИО преподавателя</label>
+            <input type="text" id="subjectTeacher" class="form-control form-control-sm" placeholder="Иванов И.И.">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Глобальная аудитория</label>
+            <input type="text" id="subjectLocation" class="form-control form-control-sm" placeholder="Ауд. I-416">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Ссылка (Moodle, Zoom, и др.)</label>
+            <input type="url" id="subjectLink" class="form-control form-control-sm" placeholder="https://...">
+        </div>
+      </div>
+      <div class="modal-footer py-1 border-0">
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveSubjectSettings()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
@@ -285,15 +464,41 @@
     
     let cachedSchedule = []; 
     let cachedLabs = {};
+    let cachedSubjectSettings = {};
     let globalChart = null;
     let globalLabChart = null;
     let currentSubjectsList = []; 
 
     let validGroups = new Set(); 
+    let allGroups = []; // для автокомплита (в исходном порядке)
     let groupsLoaded = false;
     let friendsList = []; 
     let friendsSchedules = {};
-    let visibleFriends = new Set(); 
+    let visibleFriends = new Set(JSON.parse(localStorage.getItem('visibleFriends') || '[]'));
+    
+    // Настройки отображения
+    let showTeacher = localStorage.getItem('showTeacher') !== 'false';
+    let showLocation = localStorage.getItem('showLocation') !== 'false';
+    let showFriends = localStorage.getItem('showFriends') !== 'false';
+    
+    // Функция для сохранения состояния видимости
+    function saveVisibleFriends() {
+        localStorage.setItem('visibleFriends', JSON.stringify([...visibleFriends]));
+    }
+
+    let draggingFriendId = null;
+    let editingFriendId = null;
+    let customCategories = JSON.parse(localStorage.getItem('customCategories') || '[]');
+    let draggingDropdownFriendId = null;
+
+    // --- ФУНКЦИЯ-ПОМОЩНИК ДЛЯ КАСТОМНЫХ НАЗВАНИЙ ---
+    function getDisplaySubjectKey(subjKey) {
+        // subjKey передается в формате "Предмет (Тип)", например "Математика (ПЗ)"
+        if (cachedSubjectSettings && cachedSubjectSettings[subjKey] && cachedSubjectSettings[subjKey].custom_name) {
+            return cachedSubjectSettings[subjKey].custom_name;
+        }
+        return subjKey;
+    }
 
     // Лоадер
     const loadingPhrases = [
@@ -302,7 +507,13 @@
         "Ищем расписание...",
         "Раскладываем пары по полочкам...",
         "Будим преподавателей...",
-        "Проверяем наличие окон..."
+        "Проверяем наличие окон...",
+        "Пинаем сервер...",
+        "Сканируем мудл...",
+        "Переписываем программу...",
+        "Пьем чай...",
+        "Слушаем лекцию...",
+        "Взламываем калькулятор..."
     ];
     let loaderInterval = null;
 
@@ -322,18 +533,45 @@
         if (loaderInterval) clearInterval(loaderInterval);
     }
 
-    // Сворачивание виджетов
+    function showUpdateNotification(message) {
+        let notif = document.getElementById('updateNotification');
+        document.getElementById('updateNotificationText').textContent = message;
+        notif.style.display = 'block';
+        
+        // Плавное появление (используем Web Animations API)
+        notif.animate([
+            {opacity: 0, transform: 'translateY(20px)'}, 
+            {opacity: 1, transform: 'translateY(0)'}
+        ], {duration: 300, fill: 'forwards'});
+        
+        // Скрываем через 3 секунды
+        setTimeout(() => {
+            let anim = notif.animate([
+                {opacity: 1, transform: 'translateY(0)'}, 
+                {opacity: 0, transform: 'translateY(20px)'}
+            ], {duration: 300, fill: 'forwards'});
+            anim.onfinish = () => notif.style.display = 'none';
+        }, 3000);
+    }
+
+    // Сворачивание виджетов с сохранением состояния
     function toggleWidget(bodyId, btn) {
         let body = document.getElementById(bodyId);
         if (body.style.height === '0px') {
-            body.style.height = body.dataset.originalHeight || '160px';
+            body.style.height = body.dataset.originalHeight || (bodyId === 'labPacingBody' ? 'auto' : '160px');
             setTimeout(() => { body.style.overflow = 'visible'; }, 300);
             btn.textContent = '−';
+            localStorage.setItem('widget_' + bodyId, 'expanded');
         } else {
-            if(!body.dataset.originalHeight) body.dataset.originalHeight = body.style.height;
+            if(!body.dataset.originalHeight) {
+                let h = body.style.height;
+                if (!h || h === 'auto') h = window.getComputedStyle(body).height;
+                body.dataset.originalHeight = h;
+            }
             body.style.overflow = 'hidden';
             body.style.height = '0px';
             btn.textContent = '+';
+            localStorage.setItem('widget_' + bodyId, 'collapsed');
         }
     }
 
@@ -342,8 +580,10 @@
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
+    // Исправление времени пары №4: 13:50 → 14:00, конец 15:20 → 15:30
     function fixTime(str) {
-        return str ? str.replace('13:50', '14:00') : '';
+        if (!str) return '';
+        return str.replace('13:50', '14:00').replace('15:20', '15:30');
     }
 
     function applyTimeFix(scheduleArray) {
@@ -354,34 +594,239 @@
         return scheduleArray;
     }
 
+    // Умное сравнение расписаний (игнорирует порядок ключей в JSON)
+    function isScheduleDifferent(newSched, oldSched) {
+        if (!newSched || !oldSched) return true;
+        if (newSched.length !== oldSched.length) return true;
+        
+        // Создаем уникальные отпечатки: склеиваем дату, номер пары, название и тип
+        const getHash = (arr) => arr.map(x => `${x.date}_${x.n}_${x.lesson}_${x.type_name}`).sort().join('|');
+        return getHash(newSched) !== getHash(oldSched);
+    }
+
     // УМНЫЙ АЛГОРИТМ ОПРЕДЕЛЕНИЯ КОРПУСА
-    function getCampus(lesson) {
-        if (!lesson) return 'unknown';
-        let txt = lesson.toUpperCase();
+    function getCampus(item) {
+        if (!item) return 'unknown';
         
-        // 1. Сначала ищем жесткую привязку: римская цифра + дефис + номер аудитории (напр. V-302, II-404)
-        // Это защищает от ложных срабатываний на номера подгрупп вроде "(I)"
-        let m = txt.match(/(?:^|[^A-ZА-Я0-9])(VII|IX|VI|V|II|I)\s*-\s*\d+/);
-        let roman = m ? m[1] : null;
+        let roman = null;
         
-        // 2. Если дефиса нет, ищем просто обособленное слово из римских цифр
-        if (!roman) {
-            let m2 = txt.match(/(?:^|[^A-ZА-Я0-9])(VII|IX|VI|V|II|I)(?:[^A-ZА-Я0-9]|$)/);
+        // 1. Ищем корпус напрямую в специальном поле location (например "I-416", "VII-A-34")
+        if (item.location) {
+            let loc = item.location.toUpperCase().trim();
+            // Ищем римскую цифру в самом начале строки до первого разделителя
+            let m = loc.match(/^(VIII|VII|IX|VI|IV|V|III|II|I)(?=[^A-ZА-Яa-zа-я0-9]|$)/);
+            if (m) roman = m[1];
+        }
+        
+        // 2. Если в location пусто (null), пытаемся вытащить из названия предмета (на всякий случай)
+        if (!roman && item.lesson) {
+            let txt = item.lesson.toUpperCase();
+            let m2 = txt.match(/(?:АУД|КАБ|КОРП|КОРПУС|АУДИТОРИЯ)[.\s]*[:\-]?\s*(VIII|VII|IX|VI|IV|V|III|II|I)(?:[^A-ZА-Я0-9]|$)/);
             if (m2) roman = m2[1];
         }
         
-        if (roman === 'VII' || roman === 'IX') return 'galosha';
+        if (roman === 'VII' || roman === 'VIII' || roman === 'IX') return 'galosha';
         if (roman === 'V' || roman === 'VI') return 'gogol';
-        if (roman === 'I' || roman === 'II') return 'univer';
+        if (roman === 'I' || roman === 'II' || roman === 'III' || roman === 'IV') return 'univer';
         
         return 'unknown';
+    }
+
+    // ========================================================
+    //   АВТОКОМПЛИТ ГРУПП (T9-стиль с фильтрацией)
+    // ========================================================
+    function escapeHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function escapeAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function highlightMatch(text, query) {
+        if (!query) return escapeHtml(text);
+        let lower = text.toLowerCase();
+        let q = query.toLowerCase();
+        let idx = lower.indexOf(q);
+        if (idx === -1) return escapeHtml(text);
+        return escapeHtml(text.slice(0, idx)) + '<b>' + escapeHtml(text.slice(idx, idx + q.length)) + '</b>' + escapeHtml(text.slice(idx + q.length));
+    }
+
+    function initGroupAutocomplete(input) {
+        if (!input) return;
+
+        let dropdown = document.createElement('div');
+        dropdown.className = 'autocomplete-list';
+        document.body.appendChild(dropdown);
+
+        let currentFocus = -1;
+
+        function positionDropdown() {
+            let rect = input.getBoundingClientRect();
+            dropdown.style.left = rect.left + 'px';
+            dropdown.style.top = (rect.bottom + 2) + 'px';
+            dropdown.style.width = Math.max(rect.width, 280) + 'px';
+        }
+
+        function hide() {
+            dropdown.style.display = 'none';
+            currentFocus = -1;
+        }
+
+        function getItems() {
+            return dropdown.querySelectorAll('.autocomplete-item:not(.autocomplete-empty)');
+        }
+
+        function updateActive() {
+            let items = getItems();
+            items.forEach((it, i) => it.classList.toggle('active', i === currentFocus));
+            if (items[currentFocus]) items[currentFocus].scrollIntoView({ block: 'nearest' });
+        }
+
+        function render() {
+            let query = input.value.trim();
+            let lower = query.toLowerCase();
+
+            let matches = [];
+            if (!lower) {
+                matches = allGroups.slice(0, 40);
+            } else {
+                let starts = [], contains = [];
+                for (let g of allGroups) {
+                    let gl = g.toLowerCase();
+                    if (gl.startsWith(lower)) starts.push(g);
+                    else if (gl.includes(lower)) contains.push(g);
+                }
+                matches = starts.concat(contains).slice(0, 50);
+            }
+
+            let exact = lower && allGroups.some(g => g.toLowerCase() === lower);
+
+            let html = '';
+            if (matches.length === 0 && !query) {
+                html = '<div class="autocomplete-item autocomplete-empty">Справочник групп пуст</div>';
+            } else if (matches.length === 0) {
+                html = '<div class="autocomplete-item autocomplete-empty">Ничего не найдено</div>';
+            } else {
+                matches.forEach(g => {
+                    html += `<div class="autocomplete-item" data-value="${escapeAttr(g)}">${highlightMatch(g, query)}</div>`;
+                });
+            }
+
+            if (query && !exact) {
+                html += `<div class="autocomplete-item autocomplete-add" data-add="${escapeAttr(query)}">➕ Добавить группу «${escapeHtml(query)}»</div>`;
+            }
+
+            dropdown.innerHTML = html;
+            positionDropdown();
+            dropdown.style.display = 'block';
+            currentFocus = -1;
+        }
+
+        input.addEventListener('focus', () => render());
+        input.addEventListener('input', () => render());
+        input.addEventListener('blur', () => setTimeout(hide, 180));
+
+        input.addEventListener('keydown', (e) => {
+            let items = getItems();
+            if (dropdown.style.display !== 'block') {
+                if (e.key === 'ArrowDown') { render(); e.preventDefault(); }
+                return;
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentFocus = (currentFocus + 1) % Math.max(items.length, 1);
+                updateActive();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentFocus = (currentFocus - 1 + items.length) % Math.max(items.length, 1);
+                updateActive();
+            } else if (e.key === 'Enter') {
+                if (currentFocus > -1 && items[currentFocus]) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    items[currentFocus].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                } else if (items.length > 0 && input.value.trim()) {
+                    // Enter без выбора — если есть точное совпадение, скроем
+                    let exact = allGroups.some(g => g.toLowerCase() === input.value.trim().toLowerCase());
+                    if (exact) hide();
+                }
+            } else if (e.key === 'Escape') {
+                hide();
+            }
+        });
+
+        dropdown.addEventListener('mousedown', async (e) => {
+            let item = e.target.closest('.autocomplete-item');
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (item.dataset.value) {
+                input.value = item.dataset.value;
+                hide();
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (item.dataset.add) {
+                let name = item.dataset.add.trim();
+                if (!name) return;
+                try {
+                    let r = await fetch('/api/groups/custom', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name })
+                    });
+                    let data = await r.json();
+                    if (data.success) {
+                        if (!validGroups.has(name.toUpperCase())) {
+                            validGroups.add(name.toUpperCase());
+                            allGroups.push(name);
+                        }
+                        input.value = name;
+                        hide();
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                } catch (err) { console.error(err); }
+            }
+        });
+
+        window.addEventListener('scroll', () => {
+            if (dropdown.style.display === 'block') positionDropdown();
+        }, true);
+        window.addEventListener('resize', () => {
+            if (dropdown.style.display === 'block') positionDropdown();
+        });
     }
 
     // Инициализация
     document.addEventListener("DOMContentLoaded", async () => {
         try {
             showGlobalLoader();
+            
+            // Восстановление состояния виджетов из памяти
+            ['globalStatsBody', 'labStatsBody', 'labPacingBody'].forEach(bodyId => {
+                let state = localStorage.getItem('widget_' + bodyId);
+                if (state === 'collapsed') {
+                    let body = document.getElementById(bodyId);
+                    if (body) {
+                        let btn = body.previousElementSibling.querySelector('button');
+                        if (!body.dataset.originalHeight) {
+                            body.dataset.originalHeight = body.style.height || (bodyId === 'labPacingBody' ? 'auto' : '160px');
+                        }
+                        body.style.overflow = 'hidden';
+                        body.style.height = '0px';
+                        if (btn) btn.textContent = '+';
+                    }
+                }
+            });
+            
+            // Устанавливаем положение ползунков
+            document.getElementById('toggleTeacher').checked = showTeacher;
+            document.getElementById('toggleLocation').checked = showLocation;
+            document.getElementById('toggleFriends').checked = showFriends;
+            
             await ensureGroupsLoaded(); 
+
+            // Подключаем автокомплит к полям ввода группы
+            initGroupAutocomplete(document.getElementById('groupSelect'));
+            initGroupAutocomplete(document.getElementById('friendGroup'));
 
             if(localStorage.getItem('savedGroup')) {
                 document.getElementById('groupSelect').value = localStorage.getItem('savedGroup');
@@ -402,28 +847,41 @@
         }
     });
 
+    function updateDisplayPrefs() {
+        showTeacher = document.getElementById('toggleTeacher').checked;
+        showLocation = document.getElementById('toggleLocation').checked;
+        showFriends = document.getElementById('toggleFriends').checked;
+        localStorage.setItem('showTeacher', showTeacher);
+        localStorage.setItem('showLocation', showLocation);
+        localStorage.setItem('showFriends', showFriends);
+        renderCalendar(); // Сразу перерисовываем расписание
+    }
+
     async function ensureGroupsLoaded() {
         if (groupsLoaded) return;
         try {
             let r = await fetch('/api/groups');
             let groups = await r.json();
-            const list = document.getElementById("groupList");
             if(groups && Array.isArray(groups)) {
                 groups.forEach(g => {
                     let name = typeof g === 'string' ? g : (g.name || g.title || JSON.stringify(g));
-                    validGroups.add(name.trim().toUpperCase());
-                    if(list) list.innerHTML += `<option value="${name}">`;
+                    name = String(name).trim();
+                    if (name && !validGroups.has(name.toUpperCase())) {
+                        validGroups.add(name.toUpperCase());
+                        allGroups.push(name);
+                    }
                 });
             }
             groupsLoaded = true;
         } catch(e) { console.log("Справочник групп недоступен."); }
     }
 
-    // Выпадающий список недель (ТОЛЬКО 5 НЕДЕЛЬ)
+    // --- ВЫПАДАЮЩИЙ СПИСОК НЕДЕЛЬ (прокручиваемый, ±20 недель) ---
     function updateWeekDropdown() {
-        let select = document.getElementById("weekDropdown");
-        if(!select) return;
-        select.innerHTML = "";
+        let menu = document.getElementById("weekDropdownMenu");
+        let btn = document.getElementById("weekDropdownBtn");
+        if (!menu || !btn) return;
+        menu.innerHTML = "";
         
         let realBase = new Date();
         realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
@@ -432,32 +890,39 @@
         let currBase = new Date(currentBaseDate);
         currBase.setHours(0,0,0,0);
         
-        // Находим смещение текущей просматриваемой недели относительно реальной "сегодняшней"
         let currentOffset = Math.round((currBase - realBase) / (7 * 24 * 60 * 60 * 1000));
-
-        // Генерируем 5 опций: -2, -1, 0, +1, +2 относительно выбранной недели
-        for (let i = currentOffset - 2; i <= currentOffset + 2; i++) {
+        
+        for (let i = -20; i <= 20; i++) {
             let d = new Date(realBase);
             d.setDate(d.getDate() + (i * 7));
             let endD = new Date(d);
             endD.setDate(endD.getDate() + 6);
             
             let label = `${d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endD.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
+            if (i === 0) label = `🏠 Текущая: ${label}`;
             
-            let option = document.createElement("option");
-            option.value = i;
-            
-            if (i === 0) {
-                option.text = `Текущая: ${label}`;
-            } else {
-                option.text = label;
-            }
-            
-            if (i === currentOffset) {
-                option.selected = true;
-            }
-            select.appendChild(option);
+            let li = document.createElement('li');
+            let a = document.createElement('a');
+            a.className = 'dropdown-item' + (i === currentOffset ? ' active' : '');
+            a.href = '#';
+            a.textContent = label;
+            a.onclick = (e) => { e.preventDefault(); jumpToWeek(i); };
+            li.appendChild(a);
+            menu.appendChild(li);
         }
+        
+        let dBtn = new Date(realBase);
+        dBtn.setDate(dBtn.getDate() + (currentOffset * 7));
+        let endDBtn = new Date(dBtn);
+        endDBtn.setDate(endDBtn.getDate() + 6);
+        btn.textContent = `📅 ${dBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endDBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
+        
+        btn.addEventListener('shown.bs.dropdown', () => {
+            setTimeout(() => {
+                let active = menu.querySelector('.dropdown-item.active');
+                if (active) active.scrollIntoView({ block: 'center' });
+            }, 30);
+        }, { once: true });
     }
 
     function jumpToWeek(offsetVal) {
@@ -489,8 +954,18 @@
 
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
             hideGlobalLoader();
-            alert(`Учебная группа "${group}" не найдена. Выберите существующую.`);
-            return;
+            let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу и попробовать загрузить расписание?`);
+            if (!add) return;
+            try {
+                await fetch('/api/groups/custom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: group })
+                });
+                validGroups.add(group.toUpperCase());
+                allGroups.push(group);
+            } catch(e) { console.error(e); }
+            showGlobalLoader();
         }
 
         localStorage.setItem('savedGroup', group);
@@ -503,6 +978,7 @@
             let data = await res.json();
             cachedSchedule = applyTimeFix(data);
             await updateLabsCache();
+            await fetchSubjectSettings(); // ЗАГРУЖАЕМ НАСТРОЙКИ ПРЕДМЕТОВ
             renderCalendar();
             renderCharts();
         } catch (e) {
@@ -511,6 +987,34 @@
         
         hideGlobalLoader();
         fetchFriends(); 
+        
+        // Запускаем фоновую синхронизацию с сайтом СевГУ
+        syncSemesterData(group, subgroup);
+    }
+
+    async function syncSemesterData(group, subgroup) {
+        try {
+            let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(group)}&subgroup=${subgroup}`);
+            let data = await res.json();
+            let newData = applyTimeFix(data);
+            
+            // Строгая проверка: убеждаемся, что пришли реальные данные в виде массива
+            if (Array.isArray(newData) && newData.length > 0) {
+                // Усиленная защита: отменяем обновление, если пропало больше 10% расписания
+                if (cachedSchedule && cachedSchedule.length > 0 && newData.length < cachedSchedule.length * 0.9) {
+                    console.error("Критический сбой СевГУ: попытка затереть расписание. Фоновое обновление отменено!");
+                    return;
+                }
+                
+                if (isScheduleDifferent(newData, cachedSchedule)) {
+                    cachedSchedule = newData;
+                    renderCalendar();
+                    renderCharts();
+                    showUpdateNotification("Ваше расписание обновлено в фоне");
+                    console.log("Ваше расписание было обновлено в фоне.");
+                }
+            }
+        } catch (e) { console.error("Ошибка синхронизации расписания", e); }
     }
 
     async function updateLabsCache() {
@@ -535,23 +1039,25 @@
             let subject = item.lesson;
             let type = item.type_name;
             
-            if (!stats[subject]) stats[subject] = {};
-            if (!stats[subject][type]) stats[subject][type] = { past: 0, future: 0 };
+            // Сохраняем оригинальное название для группировки
+            if (!stats[subject]) stats[subject] = { display: subject, types: {} };
+            if (!stats[subject].types[type]) stats[subject].types[type] = { past: 0, future: 0 };
             
             if (item.date < todayStr) {
-                stats[subject][type].past++;
+                stats[subject].types[type].past++;
             } else {
-                stats[subject][type].future++;
+                stats[subject].types[type].future++;
             }
         });
         
         let html = '<div class="row">';
         for(let subject in stats) {
-            html += `<div class="col-md-6 mb-3"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-light fw-bold" style="font-size:0.9em">${subject}</div><div class="card-body py-2">`;
+            let displayTitle = stats[subject].display;
+            html += `<div class="col-md-6 mb-3"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-light fw-bold" style="font-size:0.9em" title="${escapeHtml(subject)}">${escapeHtml(displayTitle)}</div><div class="card-body py-2">`;
             html += `<div class="row">`;
-            for(let type in stats[subject]) {
-                let past = stats[subject][type].past;
-                let future = stats[subject][type].future;
+            for(let type in stats[subject].types) {
+                let past = stats[subject].types[type].past;
+                let future = stats[subject].types[type].future;
                 html += `
                     <div class="col-6 mb-2">
                         <div class="border rounded p-2 text-center bg-white shadow-sm">
@@ -578,7 +1084,9 @@
     }
 
     function renderLabsContent() {
-        let uniqueSubjects = [...new Set(cachedSchedule.map(item => item.lesson))].sort();
+        // Строго фильтруем и разделяем ПЗ и ЛЗ
+        let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
+        let uniqueSubjects = [...new Set(labItems.map(item => `${item.lesson} (${item.type_name})`))].sort();
         currentSubjectsList = uniqueSubjects;
 
         let html = `
@@ -589,14 +1097,17 @@
             <div class="list-group mb-3">
         `;
 
-        uniqueSubjects.forEach((subject, idx) => {
-            let comp = cachedLabs[subject] ? cachedLabs[subject].completed : 0;
-            let tot = cachedLabs[subject] ? cachedLabs[subject].total : 0;
+        uniqueSubjects.forEach((subjKey, idx) => {
+            let comp = cachedLabs[subjKey] ? cachedLabs[subjKey].completed : 0;
+            let tot = cachedLabs[subjKey] ? cachedLabs[subjKey].total : 0;
             let percent = tot > 0 ? Math.round((comp / tot) * 100) : 0;
+            
+            // Подтягиваем пользовательское название
+            let displaySubj = getDisplaySubjectKey(subjKey);
 
             html += `
                 <div class="list-group-item border-0 shadow-sm mb-2 rounded">
-                    <h6 class="mb-2 fw-bold" style="font-size:0.9em">${subject}</h6>
+                    <h6 class="mb-2 fw-bold" style="font-size:0.9em" title="${escapeHtml(subjKey)}">${escapeHtml(displaySubj)}</h6>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <span style="font-size: 0.85em;">Сдано:</span>
                         <input type="number" id="lab-comp-${idx}" class="form-control form-control-sm" style="width: 70px" value="${comp}" min="0">
@@ -664,8 +1175,13 @@
             });
         }
 
+        // Формируем список актуальных ЛЗ и ПЗ из расписания
+        let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
+        let validSubjects = new Set(labItems.map(item => `${item.lesson} (${item.type_name})`));
+
         let totLabs = 0, compLabs = 0;
         for (let subj in cachedLabs) {
+            if (!validSubjects.has(subj)) continue; // Игнорируем старые записи без приписок
             totLabs += cachedLabs[subj].total;
             compLabs += cachedLabs[subj].completed;
         }
@@ -698,30 +1214,80 @@
             return;
         }
         
-        let expectedRatio = 0.5; // Упрощенный коэффициент для отображения плана
+        let todayStr = getLocalDateStr(new Date());
+        let scheduleStats = {};
+        
+        // Разделяем ПЗ и ЛЗ
+        cachedSchedule.forEach(item => {
+            if (item.type_name === 'ЛЗ' || item.type_name === 'ПЗ') {
+                let subjKey = `${item.lesson} (${item.type_name})`;
+                if (!scheduleStats[subjKey]) scheduleStats[subjKey] = { passed: 0, total: 0 };
+                
+                scheduleStats[subjKey].total++;
+                if (item.date < todayStr) {
+                    scheduleStats[subjKey].passed++;
+                }
+            }
+        });
+
+        let validSubjects = new Set(Object.keys(scheduleStats));
         let html = '<div class="list-group list-group-flush">';
+        let hasData = false;
+        
         for (let subj in cachedLabs) {
+            if (!validSubjects.has(subj)) continue; 
+            
             let data = cachedLabs[subj];
             if (data.total === 0) continue;
-            let expectedCount = Math.round(data.total * expectedRatio);
+            
+            hasData = true;
+            let stats = scheduleStats[subj];
+            
+            let expectedCount = 0;
+            if (stats.total > 1) {
+                let paceRatio = stats.passed / (stats.total - 1);
+                expectedCount = Math.round(data.total * paceRatio);
+            } else if (stats.passed >= 1) {
+                expectedCount = data.total;
+            }
+            
+            if (expectedCount > data.total) expectedCount = data.total;
+            if (expectedCount < 0) expectedCount = 0;
+
             let actualCount = data.completed;
             let statusClass = actualCount >= expectedCount ? 'text-success' : 'text-danger';
             let icon = actualCount >= expectedCount ? '✅' : '⚠️';
+            
+            // Получаем кастомное название
+            let displaySubj = getDisplaySubjectKey(subj);
 
             html += `
                 <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
-                    <span class="text-truncate me-2" style="max-width: 65%; font-size: 0.8em;" title="${subj}">${subj}</span>
+                    <span class="text-truncate me-2" style="max-width: 65%; font-size: 0.8em;" title="${escapeHtml(displaySubj)}">${escapeHtml(displaySubj)}</span>
                     <span class="fw-bold ${statusClass}" style="font-size: 0.8em; white-space: nowrap;">
                         ${actualCount} / ${expectedCount} ${icon}
                     </span>
                 </div>`;
         }
         html += '</div>';
-        container.innerHTML = html;
+        
+        if (!hasData) {
+            container.innerHTML = "<div class='text-center text-muted small mt-2'>Нет данных</div>";
+        } else {
+            container.innerHTML = html;
+        }
     }
 
     // --- ОТРИСОВКА КАЛЕНДАРЯ И ЗАДАЧ ---
     async function renderCalendar() {
+        // Запоминаем, какие дни сейчас открыты (развернуты)
+        let openDays = new Set();
+        document.querySelectorAll('div[id^="schedule-details-"]').forEach(el => {
+            if (el.style.display !== "none") {
+                openDays.add(el.id.replace('schedule-details-', ''));
+            }
+        });
+
         updateWeekDropdown();
         
         const cal = document.getElementById("calendar");
@@ -749,22 +1315,57 @@
                 let startTime = fixTime(daySchedule[0].time_range.split(' - ')[0]);
                 let endTime = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
                 
+                // Проверяем, был ли этот день открыт до перерисовки
+                let isExpanded = openDays.has(dateStr);
+                let detailsStyle = isExpanded ? 'display: block;' : 'display: none;';
+                let arrowIcon = isExpanded ? '▲' : '▼';
+                
                 scheduleHtml += `
                     <div class="schedule-summary shadow-sm" onclick="toggleSchedule('${dateStr}')">
-                        🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">▼</span>
+                        🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">${arrowIcon}</span>
                     </div>
-                    <div id="schedule-details-${dateStr}" style="display: none;">
+                    <div id="schedule-details-${dateStr}" style="${detailsStyle}">
                 `;
                 
                 daySchedule.forEach(item => {
-                    let safeLesson = item.lesson.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    let origLesson = item.lesson;
+                    // Создаем уникальный ключ предмета с типом пары
+                    let subjectKey = `${item.lesson} (${item.type_name})`;
+                    let safeSubjectKey = subjectKey.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    
+                    let displayLesson = origLesson;
+                    let lessonLink = "";
+                    let displayTeacher = item.teacher || "";
+                    let displayLocation = item.location || "";
+                    
+                    // Теперь проверяем настройки по уникальному ключу с типом (например, "Математика (ПЗ)")
+                    if (cachedSubjectSettings[subjectKey]) {
+                        if (cachedSubjectSettings[subjectKey].custom_name) displayLesson = cachedSubjectSettings[subjectKey].custom_name;
+                        if (cachedSubjectSettings[subjectKey].link) lessonLink = cachedSubjectSettings[subjectKey].link;
+                        if (cachedSubjectSettings[subjectKey].teacher) displayTeacher = cachedSubjectSettings[subjectKey].teacher;
+                        if (cachedSubjectSettings[subjectKey].location) displayLocation = cachedSubjectSettings[subjectKey].location;
+                    }
+                    
+                    // Формируем HTML названия
+                    let lessonHtml = lessonLink 
+                        ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: #4f46e5;" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
+                        : `<span title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</span>`;
+                    
+                    // В функцию настройки передаем ключ с типом, чтобы разделять ПЗ/ЛЗ/Лекции
+                    lessonHtml += ` <span style="cursor:pointer; font-size: 0.9em; opacity: 0.4;" onclick="openSubjectSettings('${safeSubjectKey}')" title="Настроить предмет">⚙️</span>`;
+                    
+                    let typeBadge = `<span class="badge bg-secondary ms-2" style="font-size: 0.7em;">${item.type_name}</span>`;
+                    let teacherInfo = (displayTeacher && showTeacher) ? `<span class="text-muted" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(displayTeacher)}</span>` : '';
+                    let locInfo = (displayLocation && showLocation) ? `<span class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(displayLocation)}</span>` : '';
+
                     scheduleHtml += `
-                        <div class="schedule-item shadow-sm">
-                            <strong class="text-primary">${item.time_range}</strong><br>
-                            ${item.lesson}<br>
-                            <span class="add-task-btn" onclick="createTaskFromSchedule('${item.date}', 'Сдать лабу по: ${safeLesson}')">
-                                + Заметка
-                            </span>
+                        <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div><strong class="text-primary">${item.time_range}</strong>${typeBadge}</div>
+                                <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', 'Сдать: ${safeSubjectKey}')">+ Заметка</span>
+                            </div>
+                            <div class="mb-1">${lessonHtml}</div>
+                            <div class="d-flex gap-2 flex-wrap">${teacherInfo} ${locInfo}</div>
                         </div>
                     `;
                 });
@@ -782,10 +1383,10 @@
                                 onclick="toggleTaskInput('${dateStr}')" title="Добавить задачу">+</button>
                     </div>
                     <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
-                        <input type="text" id="task-input-${dateStr}" class="form-control form-control-sm" 
-                               placeholder="Текст..." 
-                               onkeypress="handleNewTask(event, '${dateStr}')" 
-                               onblur="handleTaskBlur('${dateStr}')">
+                        <textarea id="task-input-${dateStr}" class="form-control form-control-sm" 
+                               placeholder="Текст... (Shift+Enter для переноса)" rows="2" style="resize: none;"
+                               onkeydown="handleNewTask(event, '${dateStr}')" 
+                               onblur="handleTaskBlur('${dateStr}')"></textarea>
                     </div>
                 </div>
             `;
@@ -818,7 +1419,7 @@
         } else { wrap.style.display = "none"; }
     }
 
-    function handleNewTask(e, dateStr) { if(e.key === 'Enter') { e.preventDefault(); e.target.blur(); } }
+    function handleNewTask(e, dateStr) { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }
     
     function handleTaskBlur(dateStr) {
         setTimeout(() => {
@@ -884,28 +1485,28 @@
         if (task.status !== 'completed') actions.appendChild(btnEdit);
         actions.appendChild(btnDel);
 
-        div.appendChild(spanText);
-        div.appendChild(actions);
+        div.appendChild(spanText); // Текст первый (будет сверху)
+        div.appendChild(actions);  // Кнопки вторые (уйдут вниз)
         div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
         container.appendChild(div);
     }
 
-    async function updateTaskRequest(task) {
-        await fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: task.date, text: task.text, status: task.status}) });
-        renderTask(task);
+    function updateTaskRequest(task) {
+        renderTask(task); // Мгновенно обновляем UI (Оптимистичный рендеринг)
+        fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: task.date, text: task.text, status: task.status}) });
     }
 
-    async function handleTaskDeleteClick(task) {
+    function handleTaskDeleteClick(task) {
         if (task.status !== 'completed') {
             task.status = 'completed';
-            await updateTaskRequest(task);
+            updateTaskRequest(task);
         } else {
-            await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
-            document.getElementById(`task-${task.id}`).remove(); 
+            document.getElementById(`task-${task.id}`).remove(); // Мгновенно удаляем с экрана
+            fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
         }
     }
 
-    async function toggleColor(id, currentStatus) {
+    function toggleColor(id, currentStatus) {
         let taskElement = document.getElementById(`task-${id}`);
         let newStatus = currentStatus === 'green' ? 'orange' : (currentStatus === 'orange' ? 'red' : 'green');
         let textNode = taskElement.querySelector('.task-text');
@@ -913,19 +1514,96 @@
         let dateId = taskElement.parentElement.id.replace('tasks-', '');
         
         let task = {id, date: dateId, text, status: newStatus};
-        await updateTaskRequest(task);
+        updateTaskRequest(task);
     }
 
     function allowDrop(e) { e.preventDefault(); }
-    async function drop(e, newDate) {
+    function drop(e, newDate) {
         e.preventDefault();
         let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
         if(taskData.date === newDate) return;
         taskData.date = newDate;
-        await updateTaskRequest(taskData);
+        updateTaskRequest(taskData); // Мгновенно переносим карточку
+    }
+
+    // --- НАСТРОЙКИ ПРЕДМЕТОВ (Кастомные названия, ссылки, ФИО, аудитория) ---
+    async function fetchSubjectSettings() {
+        try {
+            let res = await fetch('/api/subjects');
+            cachedSubjectSettings = await res.json();
+        } catch (e) {
+            console.error("Ошибка загрузки настроек предметов", e);
+        }
+    }
+
+    function openSubjectSettings(origLessonSafe) {
+        let decodedLesson = origLessonSafe.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+        document.getElementById('origSubjectName').value = decodedLesson;
+        document.getElementById('subjectOrigNameDisplay').textContent = decodedLesson;
+        
+        if (cachedSubjectSettings[decodedLesson]) {
+            document.getElementById('subjectCustomName').value = cachedSubjectSettings[decodedLesson].custom_name || "";
+            document.getElementById('subjectLink').value = cachedSubjectSettings[decodedLesson].link || "";
+            document.getElementById('subjectTeacher').value = cachedSubjectSettings[decodedLesson].teacher || "";
+            document.getElementById('subjectLocation').value = cachedSubjectSettings[decodedLesson].location || "";
+        } else {
+            document.getElementById('subjectCustomName').value = "";
+            document.getElementById('subjectLink').value = "";
+            document.getElementById('subjectTeacher').value = "";
+            document.getElementById('subjectLocation').value = "";
+        }
+        
+        new bootstrap.Modal(document.getElementById('subjectSettingsModal')).show();
+    }
+
+    async function saveSubjectSettings() {
+        let orig = document.getElementById('origSubjectName').value;
+        let custom = document.getElementById('subjectCustomName').value.trim();
+        let link = document.getElementById('subjectLink').value.trim();
+        let teacher = document.getElementById('subjectTeacher').value.trim();
+        let location = document.getElementById('subjectLocation').value.trim();
+        
+        await fetch('/api/subjects', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subject: orig, custom_name: custom, link: link, teacher: teacher, location: location})
+        });
+        
+        let modalEl = document.getElementById('subjectSettingsModal');
+        let modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+        
+        await fetchSubjectSettings();
+        renderCalendar(); // Обновляем календарь мгновенно
     }
 
     // --- ЛОГИКА ДРУЗЕЙ ---
+    function loadFriendsOrder() {
+        try {
+            let raw = localStorage.getItem('friendsOrder');
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+    }
+
+    function saveFriendsOrder() {
+        try {
+            let order = friendsList.map(f => f.id);
+            localStorage.setItem('friendsOrder', JSON.stringify(order));
+        } catch(e) {}
+    }
+
+    function applyFriendsOrder() {
+        let order = loadFriendsOrder();
+        if (!Array.isArray(order)) return;
+        friendsList.sort((a, b) => {
+            let ai = order.indexOf(a.id);
+            let bi = order.indexOf(b.id);
+            if (ai === -1) ai = Number.MAX_SAFE_INTEGER;
+            if (bi === -1) bi = Number.MAX_SAFE_INTEGER;
+            return ai - bi;
+        });
+    }
+
     async function fetchFriends() {
         document.getElementById('friendsLoader').style.display = 'block';
         try {
@@ -934,25 +1612,81 @@
             if (!Array.isArray(friendsList)) friendsList = [];
         } catch (e) { friendsList = []; }
 
+        applyFriendsOrder();
         let ids = new Set(friendsList.map(f => f.id));
         visibleFriends.forEach(id => { if (!ids.has(id)) visibleFriends.delete(id); });
+        saveVisibleFriends();
         
+        renderFriendDropdown();
+        await fetchAllFriendsSchedules();
+        renderFriendsCalendar();
+        document.getElementById('friendsLoader').style.display = 'none';
+    }
+
+    function renderFriendDropdown() {
         let dropdownMenu = document.getElementById('friendTogglesDropdown');
         dropdownMenu.innerHTML = '';
         
-        if(friendsList.length === 0) {
-            dropdownMenu.innerHTML = '<li><span class="dropdown-item text-muted small">Нет друзей</span></li>';
-        } else {
-            dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider"></li>`;
-            friendsList.forEach(f => {
+        // Кнопка скрыть всех (всегда видна, если есть кого скрывать)
+        dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider m-0"></li>`;
+        
+        let groupsMap = { "": [] }; 
+        customCategories.forEach(c => { if (c) groupsMap[c] = []; });
+
+        friendsList.forEach(f => {
+            let cat = f.category || "";
+            if (!groupsMap[cat]) {
+                groupsMap[cat] = [];
+                if (cat) {
+                    customCategories.push(cat);
+                    localStorage.setItem('customCategories', JSON.stringify(customCategories));
+                }
+            }
+            groupsMap[cat].push(f);
+        });
+
+        let hasAnyGroup = false;
+
+        for (let cat in groupsMap) {
+            // Если группа пустая и это "Без папки", пропускаем её
+            if (cat === "" && groupsMap[cat].length === 0) continue;
+            hasAnyGroup = true;
+
+            let isUnassigned = cat === "";
+            let catName = isUnassigned ? "Без папки" : cat;
+            let catIcon = isUnassigned ? "👤" : "📁";
+            
+            let allVisible = groupsMap[cat].length > 0 && groupsMap[cat].every(f => visibleFriends.has(f.id));
+            let catChecked = allVisible ? 'checked' : '';
+            
+            // Кнопка редактирования только для созданных папок
+            let editBtnHtml = !isUnassigned ? `<button class="btn btn-sm btn-link text-secondary p-0 ms-2 text-decoration-none" onclick="editCustomCategory('${escapeAttr(cat)}', event)" title="Переименовать папку">✏️</button>` : '';
+            
+            // Шапка папки
+            dropdownMenu.innerHTML += `
+                <li ondragover="allowDrop(event)" ondrop="handleCategoryDrop(event, '${escapeAttr(cat)}')">
+                    <div class="dropdown-item bg-light d-flex justify-content-between align-items-center border-bottom pb-1 pt-1" onclick="toggleFriendGroup('${escapeAttr(cat)}'); event.stopPropagation();">
+                        <div class="form-check m-0 flex-grow-1 d-flex align-items-center" style="cursor: pointer;">
+                            <input class="form-check-input me-2" type="checkbox" ${catChecked} style="pointer-events: none;">
+                            <label class="form-check-label fw-bold text-primary flex-grow-1 d-flex justify-content-between align-items-center" style="cursor: pointer; font-size: 0.85em;">
+                                <span>${catIcon} ${escapeHtml(catName)}</span>
+                                ${editBtnHtml}
+                            </label>
+                        </div>
+                    </div>
+                </li>
+            `;
+            
+            // Список друзей внутри папки
+            groupsMap[cat].forEach(f => {
                 let isChecked = visibleFriends.has(f.id) ? 'checked' : '';
                 dropdownMenu.innerHTML += `
-                    <li>
-                        <div class="dropdown-item d-flex justify-content-between align-items-center">
-                            <div class="form-check m-0 flex-grow-1" style="cursor: pointer;" onclick="toggleFriendVisibility(${f.id})">
-                                <input class="form-check-input" type="checkbox" id="check-friend-${f.id}" ${isChecked} style="pointer-events: none;">
-                                <label class="form-check-label fw-bold" style="cursor: pointer;">
-                                    ${f.name} <span class="text-muted small fw-normal">(${f.group})</span>
+                    <li draggable="true" ondragstart="handleDropdownDragStart(event, ${f.id})">
+                        <div class="dropdown-item d-flex justify-content-between align-items-center py-1" onclick="toggleFriendVisibility(${f.id}); event.stopPropagation();" style="cursor: grab;">
+                            <div class="form-check m-0 flex-grow-1 ms-3" style="cursor: pointer;">
+                                <input class="form-check-input" type="checkbox" ${isChecked} style="pointer-events: none;">
+                                <label class="form-check-label fw-bold" style="cursor: pointer; font-size: 0.9em;">
+                                    ⋮ ${escapeHtml(f.name)} <span class="text-muted small fw-normal">(${escapeHtml(f.group)})</span>
                                 </label>
                             </div>
                         </div>
@@ -960,54 +1694,305 @@
                 `;
             });
         }
+
+        if (!hasAnyGroup) {
+            dropdownMenu.innerHTML += '<li><span class="dropdown-item text-muted small text-center d-block py-2">Папок и друзей пока нет</span></li>';
+        }
+
+        // Поле ввода всегда присутствует снизу
+        dropdownMenu.innerHTML += `
+            <li><hr class="dropdown-divider m-0 mt-2"></li>
+            <li class="p-2 pb-1">
+                <div class="input-group input-group-sm">
+                    <input type="text" id="newCategoryInput" class="form-control" placeholder="Создать папку..." onclick="event.stopPropagation();" onkeypress="if(event.key === 'Enter') createNewCategory(event);">
+                    <button class="btn btn-outline-primary fw-bold" type="button" onclick="createNewCategory(event)">+</button>
+                </div>
+            </li>
+        `;
+    }
+
+    // Редактирование названия папки
+    async function editCustomCategory(oldName, e) {
+        e.stopPropagation();
+        let newName = prompt("Введите новое название для папки:", oldName);
+        if (!newName || newName.trim() === '' || newName === oldName) return;
+        newName = newName.trim();
         
-        await fetchAllFriendsSchedules();
+        // Заменяем имя в списке папок
+        let idx = customCategories.indexOf(oldName);
+        if (idx !== -1) {
+            customCategories[idx] = newName;
+            localStorage.setItem('customCategories', JSON.stringify(customCategories));
+        } else {
+            customCategories.push(newName);
+        }
+
+        // Обновляем папку у всех друзей
+        let friendsToUpdate = friendsList.filter(f => (f.category || '') === oldName);
+        for (let f of friendsToUpdate) {
+            f.category = newName; // Локальное обновление
+            await fetch(`/api/friends/${f.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: f.name,
+                    group: f.group,
+                    subgroup: f.subgroup,
+                    category: newName
+                })
+            });
+        }
+        renderFriendDropdown();
         renderFriendsCalendar();
-        document.getElementById('friendsLoader').style.display = 'none';
+    }
+
+    function toggleFriendGroup(cat) {
+        let groupFriends = friendsList.filter(f => (f.category || '') === cat);
+        let allVisible = groupFriends.length > 0 && groupFriends.every(f => visibleFriends.has(f.id));
+        
+        groupFriends.forEach(f => {
+            if (allVisible) {
+                visibleFriends.delete(f.id);
+            } else {
+                visibleFriends.add(f.id);
+            }
+        });
+        saveVisibleFriends();
+        renderFriendDropdown(); 
+        renderFriendsCalendar();
+    }
+
+    // --- ФУНКЦИИ DRAG-AND-DROP И СОЗДАНИЯ ПАПКИ В МЕНЮ ---
+    function handleDropdownDragStart(e, friendId) {
+        draggingDropdownFriendId = friendId;
+        e.dataTransfer.effectAllowed = 'move';
+        // Устанавливаем небольшую задержку, чтобы Bootstrap меню не закрывалось при начале перетаскивания
+        setTimeout(() => { document.getElementById('friendTogglesDropdown').classList.add('show'); }, 10);
+    }
+
+    async function handleCategoryDrop(e, newCategory) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!draggingDropdownFriendId) return;
+        
+        let friend = friendsList.find(f => f.id === draggingDropdownFriendId);
+        if (friend && (friend.category || "") !== newCategory) {
+            friend.category = newCategory; // Локальное обновление для мгновенной отрисовки
+            
+            // Фоновое обновление на сервере
+            fetch(`/api/friends/${friend.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: friend.name,
+                    group: friend.group,
+                    subgroup: friend.subgroup,
+                    category: newCategory
+                })
+            });
+            renderFriendDropdown();
+        }
+        draggingDropdownFriendId = null;
+    }
+
+    function createNewCategory(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        let input = document.getElementById('newCategoryInput');
+        let val = input.value.trim();
+        if (val && !customCategories.includes(val)) {
+            customCategories.push(val);
+            localStorage.setItem('customCategories', JSON.stringify(customCategories));
+            renderFriendDropdown();
+        }
     }
 
     function toggleFriendVisibility(id) {
         visibleFriends.has(id) ? visibleFriends.delete(id) : visibleFriends.add(id);
-        let cb = document.getElementById(`check-friend-${id}`);
-        if(cb) cb.checked = visibleFriends.has(id);
+        saveVisibleFriends();
+        renderFriendDropdown();
         renderFriendsCalendar();
     }
     
     function hideAllFriends(e) {
         if(e) e.preventDefault();
         visibleFriends.clear();
-        document.querySelectorAll('input[id^="check-friend-"]').forEach(cb => cb.checked = false);
+        saveVisibleFriends();
+        renderFriendDropdown();
         renderFriendsCalendar();
     }
 
     async function fetchAllFriendsSchedules() {
-        for (let friend of friendsList) {
+        // Запускаем запросы параллельно через map
+        let promises = friendsList.map(async (friend) => {
             if (!friendsSchedules[friend.id]) {
                 try {
                     let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
                     let data = await res.json();
                     friendsSchedules[friend.id] = applyTimeFix(data);
-                } catch (e) { friendsSchedules[friend.id] = []; }
+                    
+                    // Перерисовываем блок друга мгновенно, как только его данные пришли
+                    if (visibleFriends.has(friend.id)) {
+                        renderFriendsCalendar();
+                    }
+                } catch (e) { 
+                    friendsSchedules[friend.id] = []; 
+                }
+            }
+        });
+        
+        // Ждем завершения всех запросов
+        await Promise.all(promises);
+        
+        // Запускаем фоновую синхронизацию для всех друзей
+        syncFriendsSchedules();
+    }
+
+    async function syncFriendsSchedules() {
+        // Синхронизируем друзей по очереди, чтобы не забивать пул подключений браузера
+        for (let friend of friendsList) {
+            try {
+                let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
+                let data = await res.json();
+                let newData = applyTimeFix(data);
+                
+                if (Array.isArray(newData) && newData.length > 0) {
+                    if (friendsSchedules[friend.id] && friendsSchedules[friend.id].length > 0 && newData.length < friendsSchedules[friend.id].length * 0.9) {
+                        continue; 
+                    }
+                    
+                    if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
+                        friendsSchedules[friend.id] = newData;
+                        if (visibleFriends.has(friend.id)) {
+                            renderFriendsCalendar(); 
+                            showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
+                        }
+                    }
+                }
+            } catch (e) { console.error("Ошибка синхронизации друга", e); }
+        }
+    }
+
+    // --- ЗАПОЛНЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ПАПОК ---
+    // Заполнение выпадающего списка папок
+    function populateCategorySelect(selectedCategory) {
+        let select = document.getElementById('friendCategory');
+        select.innerHTML = '<option value="">Без папки</option>';
+        customCategories.forEach(cat => {
+            select.innerHTML += `<option value="${escapeAttr(cat)}">${escapeHtml(cat)}</option>`;
+        });
+        select.innerHTML += '<option value="_new" class="fw-bold text-primary">➕ Создать новую...</option>';
+        
+        if (selectedCategory && customCategories.includes(selectedCategory)) {
+            select.value = selectedCategory;
+        } else {
+            select.value = "";
+        }
+    }
+
+    // Обработка выбора "Создать новую..."
+    function handleCategorySelect(select) {
+        if (select.value === '_new') {
+            let newCat = prompt("Введите название новой папки:");
+            if (newCat && newCat.trim() !== '') {
+                newCat = newCat.trim();
+                if (!customCategories.includes(newCat)) {
+                    customCategories.push(newCat);
+                    localStorage.setItem('customCategories', JSON.stringify(customCategories));
+                    renderFriendDropdown(); // Обновляем меню на фоне
+                }
+                populateCategorySelect(newCat);
+            } else {
+                select.value = ""; // Сбрасываем на "Без папки", если отменено
             }
         }
     }
 
-    function showAddFriendModal() { new bootstrap.Modal(document.getElementById('addFriendModal')).show(); }
+    function showAddFriendModal() { 
+        editingFriendId = null;
+        document.querySelector('#addFriendModal .modal-title').textContent = 'Добавить друга';
+        document.getElementById('friendName').value = '';
+        document.getElementById('friendGroup').value = '';
+        document.getElementById('friendSubgroup').value = '0';
+        populateCategorySelect(''); // Изначально ставим "Без папки"
+        new bootstrap.Modal(document.getElementById('addFriendModal')).show(); 
+    }
+
+    function editFriend(id, name, group, subgroup, category) {
+        editingFriendId = id;
+        document.querySelector('#addFriendModal .modal-title').textContent = 'Редактировать друга';
+        document.getElementById('friendName').value = name;
+        document.getElementById('friendGroup').value = group;
+        document.getElementById('friendSubgroup').value = subgroup;
+        populateCategorySelect(category); // Подставляем текущую папку
+        new bootstrap.Modal(document.getElementById('addFriendModal')).show();
+    }
 
     async function saveFriend() {
-        let name = document.getElementById('friendName').value.trim();
-        let group = document.getElementById('friendGroup').value.trim();
-        let subgroup = document.getElementById('friendSubgroup').value;
+        let nameInput = document.getElementById('friendName');
+        let groupInput = document.getElementById('friendGroup');
+        let subgroupInput = document.getElementById('friendSubgroup');
+        let categoryInput = document.getElementById('friendCategory');
+        
+        let name = nameInput.value.trim();
+        let group = groupInput.value.trim();
+        let subgroup = subgroupInput.value;
+        let category = categoryInput.value === '_new' ? '' : categoryInput.value; // Защита от системного значения
+        
         if (!name || !group) return alert("Введите имя и группу");
         
         await ensureGroupsLoaded(); 
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
-            return alert("Такой группы нет. Проверьте правильность.");
+            let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу?`);
+            if (!add) return;
+            try {
+                await fetch('/api/groups/custom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: group })
+                });
+                validGroups.add(group.toUpperCase());
+                allGroups.push(group);
+            } catch(e) { console.error(e); }
         }
 
-        await fetch('/api/friends', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, group, subgroup}) });
+        if (editingFriendId) {
+            await fetch(`/api/friends/${editingFriendId}`, { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({name, group, subgroup, category}) 
+            });
+        } else {
+            let res = await fetch('/api/friends', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({name, group, subgroup, category}) 
+            });
+            let data = await res.json();
+            if (data.id) {
+                visibleFriends.add(data.id);
+                saveVisibleFriends();
+            }
+        }
+
+        nameInput.value = '';
+        groupInput.value = '';
+        subgroupInput.value = '0';
+        populateCategorySelect('');
+
         bootstrap.Modal.getInstance(document.getElementById('addFriendModal')).hide();
         await fetchFriends();
+    }
+
+    async function deleteFriend(id) {
+        if (!confirm("Вы уверены, что хотите удалить этого друга?")) return;
+        
+        try {
+            await fetch(`/api/friends/${id}`, { method: 'DELETE' });
+            visibleFriends.delete(id); // Скрываем из видимых, чтобы при ререндере он исчез
+            saveVisibleFriends(); // Сохраняем актуальный список
+            await fetchFriends();
+        } catch (e) { console.error("Ошибка при удалении друга", e); }
     }
 
     function renderFriendsCalendar() {
@@ -1015,6 +2000,7 @@
         if (!container) return;
         container.innerHTML = "";
         
+        // Если список друзей пуст — ничего не рисуем
         if (!friendsList || friendsList.length === 0) return;
         
         friendsList.forEach(friend => {
@@ -1023,10 +2009,57 @@
             let friendSched = friendsSchedules[friend.id] || [];
             let wrapper = document.createElement('div');
             wrapper.className = "friend-wrapper bg-white rounded shadow-sm px-2 pb-2 pt-1";
+            wrapper.dataset.friendId = friend.id;
+            wrapper.draggable = true;
+            
+            wrapper.addEventListener('dragstart', (e) => {
+                draggingFriendId = friend.id;
+                wrapper.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', 'friend:' + friend.id); } catch(err) {}
+            });
+            
+            wrapper.addEventListener('dragend', () => {
+                wrapper.classList.remove('dragging');
+                document.querySelectorAll('.friend-wrapper').forEach(w => w.classList.remove('drag-over'));
+                draggingFriendId = null;
+            });
+            
+            wrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (draggingFriendId !== null && draggingFriendId !== friend.id) {
+                    wrapper.classList.add('drag-over');
+                }
+            });
+            
+            wrapper.addEventListener('dragleave', () => {
+                wrapper.classList.remove('drag-over');
+            });
+            
+            wrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                wrapper.classList.remove('drag-over');
+                if (draggingFriendId === null || draggingFriendId === friend.id) return;
+                
+                let fromIdx = friendsList.findIndex(f => f.id === draggingFriendId);
+                let toIdx = friendsList.findIndex(f => f.id === friend.id);
+                if (fromIdx === -1 || toIdx === -1) return;
+                
+                let [moved] = friendsList.splice(fromIdx, 1);
+                friendsList.splice(toIdx, 0, moved);
+                saveFriendsOrder();
+                renderFriendsCalendar();
+            });
             
             let header = document.createElement('div');
-            header.className = "fw-bold text-primary mb-2 ps-1 pt-1";
-            header.innerHTML = `👤 ${friend.name} <span class="text-muted small fw-normal">(${friend.group})</span>`;
+            header.className = "fw-bold text-primary mb-2 ps-1 pt-1 friend-header-row d-flex align-items-center";
+            header.innerHTML = `
+                <span class="friend-drag-handle" title="Перетащите, чтобы изменить порядок">⋮⋮</span> 
+                <span class="flex-grow-1">👤 ${escapeHtml(friend.name)} <span class="text-muted small fw-normal ms-1">(${escapeHtml(friend.group)})</span></span>
+                <button class="btn btn-sm btn-link text-primary p-0 me-2 text-decoration-none" onclick="editFriend(${friend.id}, '${escapeAttr(friend.name)}', '${escapeAttr(friend.group)}', '${friend.subgroup}', '${escapeAttr(friend.category || '')}')" title="Редактировать">✏️</button>
+                <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="deleteFriend(${friend.id})" title="Удалить">🗑️</button>
+            `;
             wrapper.appendChild(header);
             
             let grid = document.createElement('div');
@@ -1048,30 +2081,70 @@
                 if (daySchedule.length > 0) {
                     let fStart = fixTime(daySchedule[0].time_range.split(' - ')[0]);
                     let fEnd = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
-                    let fCampStart = getCampus(daySchedule[0].lesson);
-                    let fCampEnd = getCampus(daySchedule[daySchedule.length - 1].lesson);
+                    let fCampStart = getCampus(daySchedule[0]);
+                    let fCampEnd = getCampus(daySchedule[daySchedule.length - 1]);
                     
                     html += `<div class="fw-bold text-primary mb-2 text-center border-bottom pb-1" style="font-size: 0.8em;">🕒 ${fStart} - ${fEnd}</div>`;
                     
                     let myStart = myDaySchedule.length > 0 ? fixTime(myDaySchedule[0].time_range.split(' - ')[0]) : null;
                     let myEnd = myDaySchedule.length > 0 ? fixTime(myDaySchedule[myDaySchedule.length - 1].time_range.split(' - ')[1]) : null;
-                    let myCampStart = myDaySchedule.length > 0 ? getCampus(myDaySchedule[0].lesson) : 'unknown';
-                    let myCampEnd = myDaySchedule.length > 0 ? getCampus(myDaySchedule[myDaySchedule.length - 1].lesson) : 'unknown';
+                    let myCampStart = myDaySchedule.length > 0 ? getCampus(myDaySchedule[0]) : 'unknown';
+                    let myCampEnd = myDaySchedule.length > 0 ? getCampus(myDaySchedule[myDaySchedule.length - 1]) : 'unknown';
 
+                    const campusNames = { 'galosha': 'Галоша', 'gogol': 'Гоголя', 'univer': 'Университетская' };
+
+                    // ПОИСК ОБЩИХ ПАР (совпадение по времени, названию предмета и аудитории)
+                    daySchedule.forEach(fItem => {
+                        let match = myDaySchedule.find(myItem => 
+                            myItem.time_range === fItem.time_range && 
+                            myItem.lesson === fItem.lesson &&
+                            (myItem.location || '').trim().toLowerCase() === (fItem.location || '').trim().toLowerCase()
+                        );
+                        if (match) {
+                            html += `<div class="shared-class fw-bold bg-success text-white">🤝 Общая пара в ${fixTime(fItem.time_range.split(' - ')[0])}</div>`;
+                        }
+                    });
+
+                    // НАЧАЛО пары
                     if (myStart && fStart === myStart) {
-                        if (fCampStart !== 'unknown' && myCampStart !== 'unknown' && fCampStart !== myCampStart) {
-                            html += `<div class="shared-class bg-danger text-white fw-bold">🚨 В ${fStart} разные корпуса!</div>`;
+                        if (fCampStart !== 'unknown' && myCampStart !== 'unknown') {
+                            if (fCampStart !== myCampStart) {
+                                html += `<div class="shared-class text-white fw-bold" style="background: #f97316;">🚨 Начинаем одновременно в ${fStart}, но в разных корпусах</div>`;
+                            } else {
+                                let campRu = campusNames[fCampStart] || fCampStart;
+                                html += `<div class="shared-class text-success fw-bold border border-success">🏃 Начинаем одновременно в корпусе «${campRu}» в ${fStart}</div>`;
+                            }
                         } else {
-                            html += `<div class="shared-class text-success fw-bold border border-success">🏃 Начинаем вместе в ${fStart}</div>`;
+                            html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Начинаем в одно время: ${fStart}</div>`;
                         }
                     }
                     
+                    // КОНЕЦ пары
                     if (myEnd && fEnd === myEnd) {
-                        if (fCampEnd !== 'unknown' && myCampEnd !== 'unknown' && fCampEnd !== myCampEnd) {
-                            html += `<div class="shared-class bg-danger text-white fw-bold">🚨 Заканчиваем в ${fEnd}, но разные корпуса!</div>`;
+                        if (fCampEnd !== 'unknown' && myCampEnd !== 'unknown') {
+                            if (fCampEnd !== myCampEnd) {
+                                html += `<div class="shared-class text-white fw-bold" style="background: #f97316;">🚨 Заканчиваем одновременно в ${fEnd}, но в разных корпусах</div>`;
+                            } else {
+                                let campRu = campusNames[fCampEnd] || fCampEnd;
+                                html += `<div class="shared-class fw-bold border border-success">🏡 Заканчиваем одновременно в корпусе «${campRu}» в ${fEnd}</div>`;
+                            }
                         } else {
-                            html += `<div class="shared-class fw-bold border border-success">🏡 Заканчиваем вместе в ${fEnd}</div>`;
+                            html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Заканчиваем в одно время: ${fEnd}</div>`;
                         }
+                    }
+
+                    // ПОДРОБНОЕ РАСПИСАНИЕ ДРУГА (показываем, если включен ползунок)
+                    if (showFriends) {
+                        html += `<div class="mt-2 border-top pt-2">`;
+                        daySchedule.forEach(fItem => {
+                            let typeBadge = `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">${fItem.type_name}</span>`;
+                            html += `
+                                <div class="bg-white border rounded p-1 mb-1 shadow-sm" style="font-size: 0.75em; border-left: 3px solid #cbd5e1 !important;">
+                                    <strong class="text-primary">${fixTime(fItem.time_range)}</strong>${typeBadge}<br>
+                                    <span title="${escapeHtml(fItem.lesson)}">${escapeHtml(fItem.lesson)}</span>
+                                </div>`;
+                        });
+                        html += `</div>`;
                     }
                 } else {
                     html += `<div class="text-muted text-center mt-2" style="font-size: 0.8em;">Выходной</div>`;
