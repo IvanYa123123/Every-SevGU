@@ -25,7 +25,120 @@
             display: flex; 
             flex-direction: column; 
             border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
         }
+        
+        /* ===== Полноэкранный фокус-режим для дня ===== */
+
+        /* Скрываем остальные дни */
+        .calendar-grid.has-fullscreen .day-col:not(.fullscreen-day) {
+            display: none !important;
+        }
+
+        /* Плавные переходы у детей — чтобы ширина "перетекала" */
+        .day-schedule-wrap,
+        .day-tasks-wrap {
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        border-color 0.3s ease,
+                        opacity 0.3s ease;
+        }
+
+        /* Сам развёрнутый день — с анимацией появления */
+        .day-col.fullscreen-day {
+            grid-column: 1 / -1;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            min-height: 70vh;
+            animation: dayExpand 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes dayExpand {
+            from { opacity: 0; transform: translateY(-10px) scale(0.99); }
+            to   { opacity: 1; transform: translateY(0)     scale(1);    }
+        }
+
+        .day-col.fullscreen-day .day-header {
+            width: 100%;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+
+        /* === ЗАМЕТКИ СЛЕВА — большое поле для текста === */
+        .day-col.fullscreen-day .day-tasks-wrap {
+            width: 70% !important;
+            order: 1;
+            padding-left: 0;
+            padding-right: 22px;
+            border-right: 2px dashed #e2e8f0;
+        }
+
+        /* «Лист» для заметок */
+        .day-col.fullscreen-day .day-tasks-wrap > div[id^="tasks-"] {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 18px 20px;
+            min-height: 55vh;
+            font-size: 1.05em;
+            box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.04);
+            animation: tasksSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes tasksSlideIn {
+            from { opacity: 0; transform: translateX(-18px); }
+            to   { opacity: 1; transform: translateX(0);     }
+        }
+
+        /* Карточки заметок в развёрнутом режиме — крупнее */
+        .day-col.fullscreen-day .task-card {
+            font-size: 1em;
+            padding: 12px 14px 10px 14px;
+            margin-bottom: 10px;
+        }
+
+        /* === РАСПИСАНИЕ ПАР СПРАВА === */
+        .day-col.fullscreen-day .day-schedule-wrap {
+            width: 30% !important;
+            order: 2;
+            padding-left: 22px;
+            padding-right: 0;
+            border-right: none;
+        }
+
+        /* Внутренности расписания — выезжают справа при открытии */
+        .day-col.fullscreen-day [id^="schedule-details-"] {
+            animation: scheduleSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes scheduleSlideIn {
+            from { opacity: 0; transform: translateX(18px); }
+            to   { opacity: 1; transform: translateX(0);    }
+        }
+
+        /* Пункты расписания появляются поочерёдно */
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item {
+            animation: itemFade 0.35s ease backwards;
+        }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(1) { animation-delay: 0.10s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(2) { animation-delay: 0.16s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(3) { animation-delay: 0.22s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(4) { animation-delay: 0.28s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(5) { animation-delay: 0.34s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(n+6) { animation-delay: 0.40s; }
+
+        @keyframes itemFade {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0);   }
+        }
+
+        /* Логика обрезки текста до 50 символов */
+        .task-text-short { display: inline; }
+        .task-text-full { display: none; }
+        
+        .day-col.fullscreen-day .task-text-short { display: none; }
+        .day-col.fullscreen-day .task-text-full { display: block; white-space: pre-wrap; width: 100%; }
         
         .day-header { text-align: center; font-weight: 600; font-size: 0.9em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; color: #64748b; }
         .day-today { border: 2px solid #6366f1; background-color: #eef2ff; }
@@ -38,7 +151,7 @@
             box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s;
             border-left-width: 5px;
             display: flex; 
-            flex-direction: column; /* Располагаем текст и кнопки друг под другом */
+            flex-direction: column;
         }
         .task-card:active { cursor: grabbing; }
         
@@ -47,21 +160,21 @@
             width: 100%; 
             white-space: pre-wrap; 
             overflow-wrap: break-word; 
-            word-break: break-word; /* Возвращаем умный перенос длинных слов и ссылок */
-            display: block; /* Гарантируем правильное поведение блока внутри колонки */
+            word-break: break-word;
+            display: block;
         }
         
         .task-actions { 
             display: flex; 
-            gap: 12px; /* Расстояние между карандашом и крестиком */
-            align-self: flex-end; /* Прижимаем блок с кнопками к правому нижнему краю */
-            margin-top: 8px; /* Отступ от текста сверху */
+            gap: 12px;
+            align-self: flex-end;
+            margin-top: 8px;
         }
         
         .task-btn { 
             cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1; 
             transition: color 0.2s; text-decoration: none; 
-            padding: 4px; /* Оставляем невидимый хитбокс для удобного нажатия */
+            padding: 4px;
         }
         .task-btn:hover { color: #ef4444; }
         .task-edit:hover { color: #3b82f6; }
@@ -1373,20 +1486,32 @@
             }
 
             cal.innerHTML += `
-                <div class="day-col ${isTodayClass}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
+                <div class="day-col ${isTodayClass}" id="day-col-${dateStr}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
                     <div class="day-header">${displayDate}</div>
-                    <div class="mb-2">${scheduleHtml}</div>
-                    <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
-                    <div class="text-center mt-2">
-                        <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm" 
-                                style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
-                                onclick="toggleTaskInput('${dateStr}')" title="Добавить задачу">+</button>
+                    
+                    <div class="day-schedule-wrap">
+                        <div class="mb-2">${scheduleHtml}</div>
                     </div>
-                    <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
-                        <textarea id="task-input-${dateStr}" class="form-control form-control-sm" 
-                               placeholder="Текст... (Shift+Enter для переноса)" rows="2" style="resize: none;"
-                               onkeydown="handleNewTask(event, '${dateStr}')" 
-                               onblur="handleTaskBlur('${dateStr}')"></textarea>
+                    
+                    <div class="day-tasks-wrap d-flex flex-column" style="flex-grow: 1;">
+                        <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
+                        
+                        <div id="expand-btn-wrap-${dateStr}" style="display: none; text-align: center;">
+                            <span class="add-task-btn mt-1" style="color: #f59e0b;" onclick="toggleExpandDay('${dateStr}')">Развернуть</span>
+                        </div>
+                        
+                        <div class="text-center mt-2">
+                            <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm" 
+                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
+                                    onclick="toggleTaskInput('${dateStr}')" title="Добавить задачу">+</button>
+                        </div>
+                        
+                        <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
+                            <textarea id="task-input-${dateStr}" class="form-control form-control-sm" 
+                                   placeholder="Текст заметки" rows="2" style="resize: none;"
+                                   onkeydown="handleNewTask(event, '${dateStr}')" 
+                                   onblur="handleTaskBlur('${dateStr}')"></textarea>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1417,6 +1542,143 @@
         if(wrap.style.display === "none") {
             wrap.style.display = "block"; input.focus();
         } else { wrap.style.display = "none"; }
+    }
+
+    function toggleExpandDay(dateStr) {
+        let grid = document.querySelector('.calendar-grid');
+        let col  = document.getElementById(`day-col-${dateStr}`);
+        let btn  = document.querySelector(`#expand-btn-wrap-${dateStr} span`);
+
+        // Считаем отступ = высота sticky-шапки + запас
+        let headerEl = document.querySelector('.controls-header');
+        let headerOffset = headerEl ? headerEl.offsetHeight + 25 : 90;
+
+        function scrollToCol(alignTop) {
+            let rect = col.getBoundingClientRect();
+            let targetY = window.pageYOffset + rect.top - (alignTop ? headerOffset : 0);
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        }
+
+        if (col.classList.contains('fullscreen-day')) {
+            // ===== СВОРАЧИВАЕМ =====
+            col.classList.remove('fullscreen-day');
+            grid.classList.remove('has-fullscreen');
+            btn.textContent = "Развернуть";
+
+            let details = document.getElementById(`schedule-details-${dateStr}`);
+            let arrow   = document.getElementById(`arrow-${dateStr}`);
+            if (details) details.style.display = "none";
+            if (arrow)   arrow.textContent = "▼";
+
+            setTimeout(() => scrollToCol(false), 60);
+        } else {
+            // ===== РАЗВОРАЧИВАЕМ =====
+            col.classList.add('fullscreen-day');
+            grid.classList.add('has-fullscreen');
+            btn.textContent = "Свернуть";
+
+            // Автоматически раскрываем расписание пар
+            let details = document.getElementById(`schedule-details-${dateStr}`);
+            let arrow   = document.getElementById(`arrow-${dateStr}`);
+            if (details) {
+                details.style.display = "block";
+                details.style.animation = 'none';
+                void details.offsetWidth;
+                details.style.animation = '';
+            }
+            if (arrow) arrow.textContent = "▲";
+
+            // Скроллим так, чтобы день оказался ПОД шапкой, а не за ней
+            setTimeout(() => scrollToCol(true), 60);
+        }
+    }
+
+    /* Умное распределение видимого текста по дню.
+
+       🔹 Кнопка "Развернуть" появляется, если СУММА символов всех заметок > 50.
+       🔹 Обрезка начинается, если:
+            • в одной заметке > 50 символов, ИЛИ
+            • суммарно в 2+ заметках > 80 символов.
+       🔹 Бюджет при обрезке делится ПОРОВНУ между заметками. */
+    function rebalanceDayText(dateStr) {
+        let container = document.getElementById(`tasks-${dateStr}`);
+        if (!container) return;
+
+        let cards = Array.from(container.querySelectorAll('.task-card'));
+        let wrap  = document.getElementById(`expand-btn-wrap-${dateStr}`);
+
+        if (cards.length === 0) {
+            if (wrap) wrap.style.display = 'none';
+            return;
+        }
+
+        // Собираем длины всех заметок
+        let lengths = cards.map(card => {
+            let fullEl = card.querySelector('.task-text-full');
+            return fullEl ? fullEl.textContent.length : 0;
+        });
+        let totalLen = lengths.reduce((s, n) => s + n, 0);
+
+        // === Условие показа кнопки "Развернуть" ===
+        const SHOW_BTN_THRESHOLD = 50;
+        let showButton = totalLen > SHOW_BTN_THRESHOLD;
+        if (wrap) wrap.style.display = showButton ? 'block' : 'none';
+
+        // === Условие начала сокращения ===
+        const SINGLE_NOTE_LIMIT = 50;   // для одной заметки
+        const MULTI_TOTAL_LIMIT = 80;   // для 2+ заметок
+        let shouldTrim = cards.length === 1
+            ? lengths[0] > SINGLE_NOTE_LIMIT
+            : totalLen > MULTI_TOTAL_LIMIT;
+
+        // === Без сокращения — показываем всё ===
+        if (!shouldTrim) {
+            cards.forEach(card => {
+                let shortEl = card.querySelector('.task-text-short');
+                let fullEl  = card.querySelector('.task-text-full');
+                if (shortEl && fullEl) {
+                    shortEl.textContent = fullEl.textContent;
+                    shortEl.style.opacity = '';
+                }
+            });
+            return;
+        }
+
+        // === Одна заметка — режем по 50 ===
+        if (cards.length === 1) {
+            let card    = cards[0];
+            let shortEl = card.querySelector('.task-text-short');
+            let fullEl  = card.querySelector('.task-text-full');
+            if (shortEl && fullEl) {
+                let full = fullEl.textContent;
+                shortEl.textContent = full.slice(0, SINGLE_NOTE_LIMIT).trimEnd() + '…';
+                shortEl.style.opacity = '';
+            }
+            return;
+        }
+
+        // === 2+ заметок — 80 символов поровну между всеми ===
+        const TOTAL_BUDGET = MULTI_TOTAL_LIMIT;
+        let share     = Math.floor(TOTAL_BUDGET / cards.length); // базовый кусок каждому
+        let remainder = TOTAL_BUDGET - share * cards.length;     // хвост от деления (0..N-1)
+
+        cards.forEach((card, idx) => {
+            let shortEl = card.querySelector('.task-text-short');
+            let fullEl  = card.querySelector('.task-text-full');
+            if (!shortEl || !fullEl) return;
+
+            let full  = fullEl.textContent;
+            // Раздаём остаток по одной лишней букве первым заметкам — так итог ровно 80
+            let limit = share + (idx < remainder ? 1 : 0);
+
+            if (full.length <= limit) {
+                shortEl.textContent = full;
+                shortEl.style.opacity = '';
+            } else {
+                shortEl.textContent = full.slice(0, limit).trimEnd() + '…';
+                shortEl.style.opacity = '';
+            }
+        });
     }
 
     function handleNewTask(e, dateStr) { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }
@@ -1456,9 +1718,15 @@
         div.id = `task-${task.id}`;
         div.draggable = true;
         
-        let spanText = document.createElement('span');
+        let spanText = document.createElement('div');
         spanText.className = 'task-text';
-        spanText.textContent = task.text;
+        
+        // Экранируем спецсимволы
+        let safeText = task.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // ВАЖНО: короткий текст теперь пересчитывается динамически в rebalanceDayText().
+        // Здесь просто кладём полный текст в оба span'а.
+        spanText.innerHTML = `<span class="task-text-short">${safeText}</span><span class="task-text-full">${safeText}</span>`;
         spanText.onclick = () => { if(task.status !== 'completed') toggleColor(task.id, task.status); };
         
         let actions = document.createElement('div');
@@ -1485,10 +1753,12 @@
         if (task.status !== 'completed') actions.appendChild(btnEdit);
         actions.appendChild(btnDel);
 
-        div.appendChild(spanText); // Текст первый (будет сверху)
-        div.appendChild(actions);  // Кнопки вторые (уйдут вниз)
+        div.appendChild(spanText);
+        div.appendChild(actions);
         div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
         container.appendChild(div);
+        
+        rebalanceDayText(task.date); // Пересчитываем «бюджет» дня
     }
 
     function updateTaskRequest(task) {
@@ -1501,16 +1771,17 @@
             task.status = 'completed';
             updateTaskRequest(task);
         } else {
-            document.getElementById(`task-${task.id}`).remove(); // Мгновенно удаляем с экрана
+            document.getElementById(`task-${task.id}`).remove();
             fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+            rebalanceDayText(task.date);
         }
     }
 
     function toggleColor(id, currentStatus) {
         let taskElement = document.getElementById(`task-${id}`);
         let newStatus = currentStatus === 'green' ? 'orange' : (currentStatus === 'orange' ? 'red' : 'green');
-        let textNode = taskElement.querySelector('.task-text');
-        let text = textNode.textContent;
+        let fullEl = taskElement.querySelector('.task-text-full');   // ← читаем полный текст
+        let text = fullEl ? fullEl.textContent : '';
         let dateId = taskElement.parentElement.id.replace('tasks-', '');
         
         let task = {id, date: dateId, text, status: newStatus};
@@ -1522,8 +1793,13 @@
         e.preventDefault();
         let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
         if(taskData.date === newDate) return;
+        
+        let oldDate = taskData.date; // Запоминаем откуда утащили
         taskData.date = newDate;
-        updateTaskRequest(taskData); // Мгновенно переносим карточку
+        updateTaskRequest(taskData); 
+        
+        // Запускаем пересчет старой колонки с небольшой задержкой (чтобы карточка успела исчезнуть)
+        setTimeout(() => rebalanceDayText(oldDate), 50); 
     }
 
     // --- НАСТРОЙКИ ПРЕДМЕТОВ (Кастомные названия, ссылки, ФИО, аудитория) ---
@@ -1940,6 +2216,16 @@
         let category = categoryInput.value === '_new' ? '' : categoryInput.value; // Защита от системного значения
         
         if (!name || !group) return alert("Введите имя и группу");
+
+        // Проверка: не та же группа+подгруппа, что у самого пользователя
+        let myGroup    = (document.getElementById('groupSelect').value || '').trim();
+        let mySubgroup = String(document.getElementById('subgroupSelect').value || '0');
+        let sameGroup    = myGroup && group.toLowerCase() === myGroup.toLowerCase();
+        let sameSubgroup = String(subgroup) === mySubgroup;
+
+        if (sameGroup && sameSubgroup) {
+            return alert("Друг в той же группе, что и вы");
+        }
         
         await ensureGroupsLoaded(); 
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
