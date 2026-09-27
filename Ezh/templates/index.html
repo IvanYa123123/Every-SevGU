@@ -582,9 +582,24 @@
     let globalLabChart = null;
     let currentSubjectsList = []; 
 
-    let validGroups = new Set(); 
-    let allGroups = []; // для автокомплита (в исходном порядке)
+    let allGroups = new Map();
     let groupsLoaded = false;
+
+    function addGroup(name) {
+        name = String(name || '').trim();
+        if (!name) return false;
+        const key = name.toLowerCase();
+        if (allGroups.has(key)) return false;
+        allGroups.set(key, name);
+        return true;
+    }
+    function hasGroup(name) {
+        return allGroups.has(String(name || '').trim().toLowerCase());
+    }
+    function getGroupsArray() {
+        return [...allGroups.values()];
+    }
+
     let friendsList = []; 
     let friendsSchedules = {};
     let visibleFriends = new Set(JSON.parse(localStorage.getItem('visibleFriends') || '[]'));
@@ -597,6 +612,18 @@
     // Функция для сохранения состояния видимости
     function saveVisibleFriends() {
         localStorage.setItem('visibleFriends', JSON.stringify([...visibleFriends]));
+    }
+
+    // Планировщик отложенного рендера друзей.
+    // Несколько вызовов подряд схлопываются в один rAF.
+    let _friendsRenderScheduled = false;
+    function scheduleFriendsRender() {
+        if (_friendsRenderScheduled) return;
+        _friendsRenderScheduled = true;
+        requestAnimationFrame(() => {
+            _friendsRenderScheduled = false;
+            renderFriendsCalendar();
+        });
     }
 
     let draggingFriendId = null;
@@ -748,12 +775,17 @@
     // ========================================================
     //   АВТОКОМПЛИТ ГРУПП (T9-стиль с фильтрацией)
     // ========================================================
-    function escapeHtml(s) {
-        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+     function escapeHtml(s, forAttr = false) {
+        let r = String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        if (!forAttr) r = r.replace(/'/g, '&#39;');
+        return r;
     }
-    function escapeAttr(s) {
-        return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
+    const escapeAttr = (s) => escapeHtml(s, true);
+    
     function highlightMatch(text, query) {
         if (!query) return escapeHtml(text);
         let lower = text.toLowerCase();
@@ -798,12 +830,13 @@
             let query = input.value.trim();
             let lower = query.toLowerCase();
 
+            const groupsArr = getGroupsArray();
             let matches = [];
             if (!lower) {
-                matches = allGroups.slice(0, 40);
+                matches = groupsArr.slice(0, 40);
             } else {
                 let starts = [], contains = [];
-                for (let g of allGroups) {
+                for (let g of groupsArr) {
                     let gl = g.toLowerCase();
                     if (gl.startsWith(lower)) starts.push(g);
                     else if (gl.includes(lower)) contains.push(g);
@@ -811,7 +844,7 @@
                 matches = starts.concat(contains).slice(0, 50);
             }
 
-            let exact = lower && allGroups.some(g => g.toLowerCase() === lower);
+            let exact = lower && allGroups.has(lower);
 
             let html = '';
             if (matches.length === 0 && !query) {
@@ -859,8 +892,7 @@
                     items[currentFocus].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 } else if (items.length > 0 && input.value.trim()) {
                     // Enter без выбора — если есть точное совпадение, скроем
-                    let exact = allGroups.some(g => g.toLowerCase() === input.value.trim().toLowerCase());
-                    if (exact) hide();
+                    if (allGroups.has(input.value.trim().toLowerCase())) hide();
                 }
             } else if (e.key === 'Escape') {
                 hide();
@@ -888,10 +920,7 @@
                     });
                     let data = await r.json();
                     if (data.success) {
-                        if (!validGroups.has(name.toUpperCase())) {
-                            validGroups.add(name.toUpperCase());
-                            allGroups.push(name);
-                        }
+                        addGroup(name);
                         input.value = name;
                         hide();
                         input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -975,14 +1004,10 @@
         try {
             let r = await fetch('/api/groups');
             let groups = await r.json();
-            if(groups && Array.isArray(groups)) {
+            if (groups && Array.isArray(groups)) {
                 groups.forEach(g => {
                     let name = typeof g === 'string' ? g : (g.name || g.title || JSON.stringify(g));
-                    name = String(name).trim();
-                    if (name && !validGroups.has(name.toUpperCase())) {
-                        validGroups.add(name.toUpperCase());
-                        allGroups.push(name);
-                    }
+                    addGroup(name);
                 });
             }
             groupsLoaded = true;
@@ -1063,9 +1088,8 @@
         if(!group) return;
 
         showGlobalLoader();
-        await ensureGroupsLoaded(); 
-
-        if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
+        await ensureGroupsLoaded();
+                if (allGroups.size > 0 && !hasGroup(group)) {
             hideGlobalLoader();
             let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу и попробовать загрузить расписание?`);
             if (!add) return;
@@ -1075,8 +1099,7 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ name: group })
                 });
-                validGroups.add(group.toUpperCase());
-                allGroups.push(group);
+                addGroup(group);
             } catch(e) { console.error(e); }
             showGlobalLoader();
         }
@@ -1553,29 +1576,29 @@
         let headerEl = document.querySelector('.controls-header');
         let headerOffset = headerEl ? headerEl.offsetHeight + 25 : 90;
 
-        function scrollToCol(alignTop) {
-            let rect = col.getBoundingClientRect();
-            let targetY = window.pageYOffset + rect.top - (alignTop ? headerOffset : 0);
-            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-        }
-
         if (col.classList.contains('fullscreen-day')) {
             // ===== СВОРАЧИВАЕМ =====
             col.classList.remove('fullscreen-day');
             grid.classList.remove('has-fullscreen');
-            btn.textContent = "Развернуть";
+            if (btn) btn.textContent = "Развернуть";
 
             let details = document.getElementById(`schedule-details-${dateStr}`);
             let arrow   = document.getElementById(`arrow-${dateStr}`);
             if (details) details.style.display = "none";
             if (arrow)   arrow.textContent = "▼";
 
-            setTimeout(() => scrollToCol(false), 60);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    let rect = col.getBoundingClientRect();
+                    let targetY = window.pageYOffset + rect.top - headerOffset;
+                    window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
+                });
+            });
         } else {
             // ===== РАЗВОРАЧИВАЕМ =====
             col.classList.add('fullscreen-day');
             grid.classList.add('has-fullscreen');
-            btn.textContent = "Свернуть";
+            if (btn) btn.textContent = "Свернуть";
 
             // Автоматически раскрываем расписание пар
             let details = document.getElementById(`schedule-details-${dateStr}`);
@@ -1588,27 +1611,31 @@
             }
             if (arrow) arrow.textContent = "▲";
 
-            // Скроллим так, чтобы день оказался ПОД шапкой, а не за ней
-            setTimeout(() => scrollToCol(true), 60);
+            setTimeout(() => {
+                let rect = col.getBoundingClientRect();
+                let targetY = window.pageYOffset + rect.top - headerOffset;
+                window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+            }, 60);
         }
     }
 
-    /* Умное распределение видимого текста по дню.
-
-       🔹 Кнопка "Развернуть" появляется, если СУММА символов всех заметок > 50.
-       🔹 Обрезка начинается, если:
-            • в одной заметке > 50 символов, ИЛИ
-            • суммарно в 2+ заметках > 80 символов.
-       🔹 Бюджет при обрезке делится ПОРОВНУ между заметками. */
     function rebalanceDayText(dateStr) {
         let container = document.getElementById(`tasks-${dateStr}`);
         if (!container) return;
 
         let cards = Array.from(container.querySelectorAll('.task-card'));
         let wrap  = document.getElementById(`expand-btn-wrap-${dateStr}`);
+        if (!wrap) return;
+
+        // Определяем, развёрнут ли сейчас день
+        let col = document.getElementById(`day-col-${dateStr}`);
+        let isFullscreen = !!(col && col.classList.contains('fullscreen-day'));
+        let btnSpan = wrap.querySelector('span');
+
+        if (btnSpan) btnSpan.textContent = isFullscreen ? 'Свернуть' : 'Развернуть';
 
         if (cards.length === 0) {
-            if (wrap) wrap.style.display = 'none';
+            wrap.style.display = isFullscreen ? 'block' : 'none';
             return;
         }
 
@@ -1619,14 +1646,14 @@
         });
         let totalLen = lengths.reduce((s, n) => s + n, 0);
 
-        // === Условие показа кнопки "Развернуть" ===
+        // === Условие показа кнопки ===
         const SHOW_BTN_THRESHOLD = 50;
-        let showButton = totalLen > SHOW_BTN_THRESHOLD;
-        if (wrap) wrap.style.display = showButton ? 'block' : 'none';
+        let showButton = isFullscreen || totalLen > SHOW_BTN_THRESHOLD;
+        wrap.style.display = showButton ? 'block' : 'none';
 
         // === Условие начала сокращения ===
-        const SINGLE_NOTE_LIMIT = 50;   // для одной заметки
-        const MULTI_TOTAL_LIMIT = 80;   // для 2+ заметок
+        const SINGLE_NOTE_LIMIT = 50;
+        const MULTI_TOTAL_LIMIT = 80;
         let shouldTrim = cards.length === 1
             ? lengths[0] > SINGLE_NOTE_LIMIT
             : totalLen > MULTI_TOTAL_LIMIT;
@@ -1657,10 +1684,10 @@
             return;
         }
 
-        // === 2+ заметок — 80 символов поровну между всеми ===
+        // === 2+ заметок — 80 символов поровну ===
         const TOTAL_BUDGET = MULTI_TOTAL_LIMIT;
-        let share     = Math.floor(TOTAL_BUDGET / cards.length); // базовый кусок каждому
-        let remainder = TOTAL_BUDGET - share * cards.length;     // хвост от деления (0..N-1)
+        let share     = Math.floor(TOTAL_BUDGET / cards.length);
+        let remainder = TOTAL_BUDGET - share * cards.length;
 
         cards.forEach((card, idx) => {
             let shortEl = card.querySelector('.task-text-short');
@@ -1668,7 +1695,6 @@
             if (!shortEl || !fullEl) return;
 
             let full  = fullEl.textContent;
-            // Раздаём остаток по одной лишней букве первым заметкам — так итог ровно 80
             let limit = share + (idx < remainder ? 1 : 0);
 
             if (full.length <= limit) {
@@ -1909,17 +1935,21 @@
         let groupsMap = { "": [] }; 
         customCategories.forEach(c => { if (c) groupsMap[c] = []; });
 
+        let categoriesChanged = false;
         friendsList.forEach(f => {
             let cat = f.category || "";
             if (!groupsMap[cat]) {
                 groupsMap[cat] = [];
-                if (cat) {
+                if (cat && !customCategories.includes(cat)) {
                     customCategories.push(cat);
-                    localStorage.setItem('customCategories', JSON.stringify(customCategories));
+                    categoriesChanged = true;
                 }
             }
             groupsMap[cat].push(f);
         });
+        if (categoriesChanged) {
+            localStorage.setItem('customCategories', JSON.stringify(customCategories));
+        }
 
         let hasAnyGroup = false;
 
@@ -2109,7 +2139,7 @@
                     
                     // Перерисовываем блок друга мгновенно, как только его данные пришли
                     if (visibleFriends.has(friend.id)) {
-                        renderFriendsCalendar();
+                        scheduleFriendsRender();
                     }
                 } catch (e) { 
                     friendsSchedules[friend.id] = []; 
@@ -2125,28 +2155,48 @@
     }
 
     async function syncFriendsSchedules() {
-        // Синхронизируем друзей по очереди, чтобы не забивать пул подключений браузера
-        for (let friend of friendsList) {
+        const CONCURRENCY = 3; // не более 3 одновременных запросов
+        const queue = friendsList.slice();
+
+        async function syncOne(friend) {
             try {
                 let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
                 let data = await res.json();
                 let newData = applyTimeFix(data);
-                
-                if (Array.isArray(newData) && newData.length > 0) {
-                    if (friendsSchedules[friend.id] && friendsSchedules[friend.id].length > 0 && newData.length < friendsSchedules[friend.id].length * 0.9) {
-                        continue; 
-                    }
-                    
-                    if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
-                        friendsSchedules[friend.id] = newData;
-                        if (visibleFriends.has(friend.id)) {
-                            renderFriendsCalendar(); 
-                            showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
-                        }
+
+                if (!Array.isArray(newData) || newData.length === 0) return;
+
+                // Защита: не перезатираем расписание, если пропало >10%
+                if (friendsSchedules[friend.id]
+                        && friendsSchedules[friend.id].length > 0
+                        && newData.length < friendsSchedules[friend.id].length * 0.9) {
+                    return;
+                }
+
+                if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
+                    friendsSchedules[friend.id] = newData;
+                    if (visibleFriends.has(friend.id)) {
+                        scheduleFriendsRender();
+                        showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
                     }
                 }
-            } catch (e) { console.error("Ошибка синхронизации друга", e); }
+            } catch (e) {
+                console.error("Ошибка синхронизации друга", e);
+            }
         }
+
+        async function worker() {
+            while (queue.length > 0) {
+                const friend = queue.shift();
+                if (friend) await syncOne(friend);
+            }
+        }
+
+        const workers = Array.from(
+            { length: Math.min(CONCURRENCY, queue.length) },
+            () => worker()
+        );
+        await Promise.all(workers);
     }
 
     // --- ЗАПОЛНЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ПАПОК ---
@@ -2228,7 +2278,7 @@
         }
         
         await ensureGroupsLoaded(); 
-        if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
+        if (allGroups.size > 0 && !hasGroup(group)) {
             let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу?`);
             if (!add) return;
             try {
@@ -2237,8 +2287,7 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ name: group })
                 });
-                validGroups.add(group.toUpperCase());
-                allGroups.push(group);
+                addGroup(group);
             } catch(e) { console.error(e); }
         }
 

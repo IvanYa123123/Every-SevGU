@@ -1,48 +1,99 @@
 import os
 import json
+import time
 import sqlite3
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, g
 from planner import SevSUPlanner
 
 app = Flask(__name__)
 planner = SevSUPlanner()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "planner.db")
 GROUPS_FILE = os.path.join(BASE_DIR, "Group.txt")
 CUSTOM_GROUPS_FILE = os.path.join(BASE_DIR, "custom_groups.json")
 SCHEDULES_DIR = os.path.join(BASE_DIR, "schedules")
-os.makedirs(SCHEDULES_DIR, exist_ok=True)  # Создаем папку, если ее нет
+SYNC_TIMES_FILE = os.path.join(BASE_DIR, ".sync_times.json")
+
+# Троттлинг фоновой синхронизации: по умолчанию не чаще, чем раз в 6 часов.
+MIN_SYNC_INTERVAL = 6 * 3600
+
+os.makedirs(SCHEDULES_DIR, exist_ok=True)
+
+# ============================================================
+#  БАЗА ДАННЫХ
+# ============================================================
+
+def get_db():
+    """Возвращает соединение с БД, привязанное к текущему запросу."""
+    if 'db' not in g:
+        g.db = sqlite3.connect(DB_FILE)
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
+    return g.db
+
+@app.teardown_appcontext
+def close_db(exc=None):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+def _column_exists(conn, table, column):
+    """Проверяет наличие колонки в таблице — надёжнее, чем try/except ALTER TABLE."""
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(r[1] == column for r in rows)
+
+def _add_column_if_missing(conn, table, column, ddl):
+    if not _column_exists(conn, table, column):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 def init_db():
-    with sqlite3.connect('planner.db') as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS tasks 
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                         date TEXT, text TEXT, status TEXT)''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS lab_progress 
-                        (group_name TEXT, subject TEXT, completed INTEGER, total INTEGER, 
-                        PRIMARY KEY(group_name, subject))''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS friends 
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                         name TEXT, group_name TEXT, subgroup TEXT)''')
-        
-        # Таблица для настроек предметов
-        conn.execute('''CREATE TABLE IF NOT EXISTS subject_settings 
-                        (subject TEXT PRIMARY KEY, custom_name TEXT, link TEXT)''')
-        
-        # Миграция: добавляем колонки для глобального ФИО и аудитории, если их нет
-        try:
-            conn.execute('ALTER TABLE subject_settings ADD COLUMN teacher TEXT')
-            conn.execute('ALTER TABLE subject_settings ADD COLUMN location TEXT')
-        except sqlite3.OperationalError:
-            pass # Колонки уже существуют
-        
-        # Миграция: добавляем колонку для пользовательских групп (папок) друзей
-        try:
-            conn.execute('ALTER TABLE friends ADD COLUMN category TEXT DEFAULT "Мои друзья"')
-        except sqlite3.OperationalError:
-            pass
+    """Создаёт схему при первом запуске и докатывает недостающие колонки."""
+    with sqlite3.connect(DB_FILE) as conn:
+        # WAL: параллельные чтения не блокируют запись.
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS tasks
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         date TEXT NOT NULL,
+                         text TEXT NOT NULL,
+                         status TEXT NOT NULL DEFAULT 'green')''')
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS lab_progress
+                        (group_name TEXT NOT NULL,
+                         subject TEXT NOT NULL,
+                         completed INTEGER NOT NULL DEFAULT 0,
+                         total INTEGER NOT NULL DEFAULT 0,
+                         PRIMARY KEY(group_name, subject))''')
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS friends
+                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         name TEXT NOT NULL,
+                         group_name TEXT NOT NULL,
+                         subgroup TEXT NOT NULL DEFAULT '0',
+                         category TEXT DEFAULT 'Мои друзья')''')
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS subject_settings
+                        (subject TEXT PRIMARY KEY,
+                         custom_name TEXT,
+                         link TEXT)''')
+
+        # Миграции: докатываем колонки, которых может не быть в старой БД.
+        _add_column_if_missing(conn, "subject_settings", "teacher", "TEXT")
+        _add_column_if_missing(conn, "subject_settings", "location", "TEXT")
+        _add_column_if_missing(conn, "friends", "category", "TEXT DEFAULT 'Мои друзья'")
+
+        # Индексы для частых выборок.
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_friends_category ON friends(category)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_lab_group ON lab_progress(group_name)")
 
 init_db()
+
+# ============================================================
+#  РАБОТА С ГРУППАМИ
+# ============================================================
 
 def load_custom_groups():
     """Загружает список пользовательских групп из JSON-файла."""
@@ -65,7 +116,7 @@ def save_custom_groups(groups):
         pass
 
 def load_local_groups():
-    """Загружает группы из Group.txt (с дедупликацией) + пользовательские группы."""
+    """Group.txt + custom_groups.json с дедупликацией."""
     groups = []
     seen = set()
 
@@ -80,7 +131,6 @@ def load_local_groups():
         except OSError:
             pass
 
-    # Добавляем пользовательские группы
     for name in load_custom_groups():
         if name and name not in seen:
             seen.add(name)
@@ -89,14 +139,46 @@ def load_local_groups():
     return groups
 
 def make_safe_filename(name):
-    """Очищает название группы от символов, запрещенных в именах файлов.
-    Слэши, обратные слэши, двоеточия, звездочки, вопросительные знаки,
-    кавычки, угловые скобки и вертикальная черта заменяются на '_'."""
+    """Заменяет символы, запрещённые в именах файлов."""
     forbidden = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
     result = str(name)
     for ch in forbidden:
         result = result.replace(ch, '_')
     return result
+
+# ============================================================
+#  ТРОТТЛИНГ СИНХРОНИЗАЦИИ
+# ============================================================
+
+def _load_sync_times():
+    if os.path.exists(SYNC_TIMES_FILE):
+        try:
+            with open(SYNC_TIMES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+def _save_sync_times(times):
+    try:
+        with open(SYNC_TIMES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(times, f)
+    except OSError:
+        pass
+
+def _needs_sync(key):
+    """True, если с момента последней синхронизации прошло больше MIN_SYNC_INTERVAL."""
+    last = _load_sync_times().get(key, 0)
+    return (time.time() - last) > MIN_SYNC_INTERVAL
+
+def _mark_synced(key):
+    times = _load_sync_times()
+    times[key] = time.time()
+    _save_sync_times(times)
+
+# ============================================================
+#  РОУТЫ
+# ============================================================
 
 @app.route("/")
 def index():
@@ -104,13 +186,11 @@ def index():
 
 @app.route("/api/groups")
 def get_groups():
-    """Возвращает список групп из локальной базы (Group.txt + custom).
-    Если локальная база пуста — пробует получить список с сервера СевГУ."""
+    """Список групп из локальной базы. Если пусто — тянем с сервера СевГУ."""
     local_groups = load_local_groups()
     if local_groups:
         return jsonify(local_groups)
 
-    # Fallback: внешний API
     try:
         params = {"v": "6.2", "section": "0"}
         resp = planner.session.get(planner.groups_api, params=params, timeout=5)
@@ -125,13 +205,11 @@ def get_groups():
 
 @app.route("/api/groups/custom", methods=["POST"])
 def add_custom_group():
-    """Добавляет пользовательскую группу в custom_groups.json."""
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({"success": False, "error": "empty name"}), 400
 
-    # Если группа уже есть в базовом файле — ничего не делаем
     existing = load_local_groups()
     if any(g.lower() == name.lower() for g in existing):
         return jsonify({"success": True, "already": True})
@@ -149,44 +227,50 @@ def get_schedule_all():
     subgroup = request.args.get('subgroup', '0')
     if not group:
         return jsonify([])
-    
-    # Заменяем запрещенные символы (слеши, двоеточия, звездочки) на нижнее подчеркивание
+
     safe_group = make_safe_filename(group)
     cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
-    
-    # 1. Пробуем отдать из кэша
+
+    # 1. Кэш
     if os.path.exists(cache_file):
         try:
             with open(cache_file, 'r', encoding='utf-8') as f:
                 return jsonify(json.load(f))
-        except Exception:
+        except (json.JSONDecodeError, OSError):
             pass
 
-    # 2. Если кэша нет, грузим с сайта и сохраняем
+    # 2. Загрузка с сайта
     schedule = planner.get_semester_schedule(group, subgroup)
-    if schedule:  # Сохраняем только если данные получены
+    if schedule:
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(schedule, f, ensure_ascii=False, indent=2)
-        except Exception:
+        except OSError:
             pass
     return jsonify(schedule)
 
 @app.route("/api/schedule_sync")
 def sync_schedule():
-    """Фоновое обновление расписания с сайта"""
+    """Фоновое обновление расписания. Троттлится, чтобы не дёргать СевГУ зря."""
     group = request.args.get('group')
     subgroup = request.args.get('subgroup', '0')
     if not group:
         return jsonify([])
-        
+
+    force = request.args.get('force') == '1'
+    sync_key = f"{group}_{subgroup}"
+
+    if not force and not _needs_sync(sync_key):
+        # Недавно синхронизировали — не трогаем.
+        return jsonify([])
+
     schedule = planner.get_semester_schedule(group, subgroup)
-    
+
     if schedule:
         safe_group = make_safe_filename(group)
         cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
-        
-        # УСИЛЕННАЯ ЗАЩИТА: Блокируем перезапись, если пропало более 10% расписания.
+
+        # Защита: не перезаписываем кэш, если пришло меньше 90% старого объёма.
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, 'r', encoding='utf-8') as f:
@@ -194,105 +278,227 @@ def sync_schedule():
                 if len(schedule) < len(old_schedule) * 0.9:
                     print(f"[Защита] Отмена записи: получено {len(schedule)} пар, в кэше {len(old_schedule)}")
                     return jsonify(old_schedule)
-            except Exception:
+            except (json.JSONDecodeError, OSError):
                 pass
 
-        # Если данные выглядят надежно, сохраняем
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(schedule, f, ensure_ascii=False, indent=2)
-        except Exception:
+        except OSError:
             pass
-            
+
+    # Отмечаем синхронизацию независимо от результата — чтобы не долбить СевГУ.
+    _mark_synced(sync_key)
     return jsonify(schedule)
+
+# ============================================================
+#  ЛАБЫ
+# ============================================================
 
 @app.route("/api/labs", methods=["GET", "POST"])
 def manage_labs():
-    with sqlite3.connect('planner.db') as conn:
-        if request.method == "POST":
-            data = request.json
-            if isinstance(data, list):
-                for item in data:
-                    conn.execute("INSERT OR REPLACE INTO lab_progress (group_name, subject, completed, total) VALUES (?, ?, ?, ?)", 
-                                 (item['group'], item['subject'], int(item['completed']), int(item['total'])))
-            else:
-                conn.execute("INSERT OR REPLACE INTO lab_progress (group_name, subject, completed, total) VALUES (?, ?, ?, ?)", 
-                             (data['group'], data['subject'], int(data['completed']), int(data['total'])))
-            return jsonify({"success": True})
-        
-        group = request.args.get('group')
-        cursor = conn.execute("SELECT subject, completed, total FROM lab_progress WHERE group_name=?", (group,))
-        labs = {row[0]: {"completed": row[1], "total": row[2]} for row in cursor.fetchall()}
-        return jsonify(labs)
+    conn = get_db()
+
+    if request.method == "POST":
+        data = request.get_json(silent=True)
+        if data is None:
+            return jsonify({"error": "invalid json"}), 400
+
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            group = (item.get('group') or '').strip()
+            subject = (item.get('subject') or '').strip()
+            if not group or not subject:
+                continue
+            try:
+                completed = max(0, int(item.get('completed', 0)))
+                total = max(0, int(item.get('total', 0)))
+            except (TypeError, ValueError):
+                continue
+            if completed > total:
+                completed = total
+            conn.execute(
+                "INSERT OR REPLACE INTO lab_progress (group_name, subject, completed, total) "
+                "VALUES (?, ?, ?, ?)",
+                (group, subject, completed, total)
+            )
+        conn.commit()
+        return jsonify({"success": True})
+
+    group = request.args.get('group')
+    if not group:
+        return jsonify({})
+
+    cursor = conn.execute(
+        "SELECT subject, completed, total FROM lab_progress WHERE group_name=?",
+        (group,)
+    )
+    labs = {row["subject"]: {"completed": row["completed"], "total": row["total"]}
+            for row in cursor.fetchall()}
+    return jsonify(labs)
+
+# ============================================================
+#  ЗАДАЧИ
+# ============================================================
 
 @app.route("/api/tasks", methods=["GET", "POST"])
 def manage_tasks():
-    with sqlite3.connect('planner.db') as conn:
-        if request.method == "POST":
-            data = request.json
-            cursor = conn.execute("INSERT INTO tasks (date, text, status) VALUES (?, ?, ?)", 
-                                  (data['date'], data['text'], data.get('status', 'green')))
-            return jsonify({"id": cursor.lastrowid})
-        
-        start_date = request.args.get('start')
-        end_date = request.args.get('end')
-        cursor = conn.execute("SELECT id, date, text, status FROM tasks WHERE date BETWEEN ? AND ?", 
-                              (start_date, end_date))
-        tasks = [{"id": row[0], "date": row[1], "text": row[2], "status": row[3]} for row in cursor.fetchall()]
-        return jsonify(tasks)
+    conn = get_db()
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        date = (data.get('date') or '').strip()
+        text = (data.get('text') or '').strip()
+        status = (data.get('status') or 'green').strip()
+
+        if not date or not text:
+            return jsonify({"error": "date and text required"}), 400
+        if status not in ('green', 'orange', 'red', 'completed'):
+            status = 'green'
+
+        cursor = conn.execute(
+            "INSERT INTO tasks (date, text, status) VALUES (?, ?, ?)",
+            (date, text, status)
+        )
+        conn.commit()
+        return jsonify({"id": cursor.lastrowid})
+
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+    if not start_date or not end_date:
+        return jsonify([])
+
+    cursor = conn.execute(
+        "SELECT id, date, text, status FROM tasks WHERE date BETWEEN ? AND ?",
+        (start_date, end_date)
+    )
+    tasks = [{"id": row["id"], "date": row["date"],
+              "text": row["text"], "status": row["status"]}
+             for row in cursor.fetchall()]
+    return jsonify(tasks)
 
 @app.route("/api/tasks/<int:task_id>", methods=["PUT", "DELETE"])
 def update_task(task_id):
-    with sqlite3.connect('planner.db') as conn:
-        if request.method == "PUT":
-            data = request.json
-            conn.execute("UPDATE tasks SET date=?, status=?, text=? WHERE id=?", 
-                         (data['date'], data['status'], data['text'], task_id))
-            return jsonify({"success": True})
-        elif request.method == "DELETE":
-            conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
-            return jsonify({"success": True})
+    conn = get_db()
 
-# === РОУТЫ ДЛЯ ДРУЗЕЙ ===
+    if request.method == "PUT":
+        data = request.get_json(silent=True) or {}
+        date = (data.get('date') or '').strip()
+        text = (data.get('text') or '').strip()
+        status = (data.get('status') or 'green').strip()
+
+        if not date or not text:
+            return jsonify({"error": "date and text required"}), 400
+
+        conn.execute(
+            "UPDATE tasks SET date=?, status=?, text=? WHERE id=?",
+            (date, status, text, task_id)
+        )
+        conn.commit()
+        return jsonify({"success": True})
+
+    conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+    conn.commit()
+    return jsonify({"success": True})
+
+# ============================================================
+#  ДРУЗЬЯ
+# ============================================================
+
 @app.route("/api/friends", methods=["GET", "POST"])
 def manage_friends():
-    with sqlite3.connect('planner.db') as conn:
-        if request.method == "POST":
-            data = request.json
-            cursor = conn.execute("INSERT INTO friends (name, group_name, subgroup, category) VALUES (?, ?, ?, ?)", 
-                                  (data['name'], data['group'], data['subgroup'], data.get('category', '')))
-            return jsonify({"id": cursor.lastrowid})
-        
-        cursor = conn.execute("SELECT id, name, group_name, subgroup, category FROM friends")
-        friends = [{"id": row[0], "name": row[1], "group": row[2], "subgroup": row[3], "category": row[4] or ""} for row in cursor.fetchall()]
-        return jsonify(friends)
+    conn = get_db()
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        name = (data.get('name') or '').strip()
+        group = (data.get('group') or '').strip()
+        subgroup = str(data.get('subgroup', '0'))
+        category = (data.get('category') or '').strip()
+
+        if not name or not group:
+            return jsonify({"error": "name and group required"}), 400
+
+        cursor = conn.execute(
+            "INSERT INTO friends (name, group_name, subgroup, category) VALUES (?, ?, ?, ?)",
+            (name, group, subgroup, category)
+        )
+        conn.commit()
+        return jsonify({"id": cursor.lastrowid})
+
+    cursor = conn.execute("SELECT id, name, group_name, subgroup, category FROM friends")
+    friends = [{"id": row["id"], "name": row["name"], "group": row["group_name"],
+                "subgroup": row["subgroup"], "category": row["category"] or ""}
+               for row in cursor.fetchall()]
+    return jsonify(friends)
 
 @app.route("/api/friends/<int:friend_id>", methods=["PUT", "DELETE"])
 def update_or_delete_friend(friend_id):
-    with sqlite3.connect('planner.db') as conn:
-        if request.method == "PUT":
-            data = request.json
-            conn.execute("UPDATE friends SET name=?, group_name=?, subgroup=?, category=? WHERE id=?", 
-                         (data['name'], data['group'], data['subgroup'], data.get('category', ''), friend_id))
-            return jsonify({"success": True})
-        elif request.method == "DELETE":
-            conn.execute("DELETE FROM friends WHERE id=?", (friend_id,))
-            return jsonify({"success": True})
+    conn = get_db()
 
-# === РОУТЫ ДЛЯ НАСТРОЕК ПРЕДМЕТОВ ===
+    if request.method == "PUT":
+        data = request.get_json(silent=True) or {}
+        name = (data.get('name') or '').strip()
+        group = (data.get('group') or '').strip()
+        subgroup = str(data.get('subgroup', '0'))
+        category = (data.get('category') or '').strip()
+
+        if not name or not group:
+            return jsonify({"error": "name and group required"}), 400
+
+        conn.execute(
+            "UPDATE friends SET name=?, group_name=?, subgroup=?, category=? WHERE id=?",
+            (name, group, subgroup, category, friend_id)
+        )
+        conn.commit()
+        return jsonify({"success": True})
+
+    conn.execute("DELETE FROM friends WHERE id=?", (friend_id,))
+    conn.commit()
+    return jsonify({"success": True})
+
+# ============================================================
+#  НАСТРОЙКИ ПРЕДМЕТОВ
+# ============================================================
+
 @app.route("/api/subjects", methods=["GET", "POST"])
 def manage_subjects():
-    with sqlite3.connect('planner.db') as conn:
-        if request.method == "POST":
-            data = request.json
-            conn.execute("INSERT OR REPLACE INTO subject_settings (subject, custom_name, link, teacher, location) VALUES (?, ?, ?, ?, ?)", 
-                         (data['subject'], data.get('custom_name', ''), data.get('link', ''), data.get('teacher', ''), data.get('location', '')))
-            return jsonify({"success": True})
-        
-        cursor = conn.execute("SELECT subject, custom_name, link, teacher, location FROM subject_settings")
-        # Возвращаем словарь с новыми полями
-        settings = {row[0]: {"custom_name": row[1], "link": row[2], "teacher": row[3], "location": row[4]} for row in cursor.fetchall()}
-        return jsonify(settings)
+    conn = get_db()
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        subject = (data.get('subject') or '').strip()
+        if not subject:
+            return jsonify({"error": "subject required"}), 400
+
+        conn.execute(
+            "INSERT OR REPLACE INTO subject_settings "
+            "(subject, custom_name, link, teacher, location) VALUES (?, ?, ?, ?, ?)",
+            (subject,
+             data.get('custom_name', '') or '',
+             data.get('link', '') or '',
+             data.get('teacher', '') or '',
+             data.get('location', '') or '')
+        )
+        conn.commit()
+        return jsonify({"success": True})
+
+    cursor = conn.execute(
+        "SELECT subject, custom_name, link, teacher, location FROM subject_settings"
+    )
+    settings = {row["subject"]: {
+        "custom_name": row["custom_name"],
+        "link": row["link"],
+        "teacher": row["teacher"],
+        "location": row["location"],
+    } for row in cursor.fetchall()}
+    return jsonify(settings)
+
+# ============================================================
+#  ЗАПУСК
+# ============================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # debug включается явно: FLASK_DEBUG=1 python app.py
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug, host="127.0.0.1", port=5000)
