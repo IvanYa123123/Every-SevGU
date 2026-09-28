@@ -1,0 +1,2892 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ежедневник СевГУ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            background-color: #f8fafc; 
+            font-family: 'Inter', sans-serif;
+            color: #334155;
+        }
+        
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; width: 100%; }
+        
+        .day-col { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 12px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+            min-height: 250px; 
+            display: flex; 
+            flex-direction: column; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        /* ===== Полноэкранный фокус-режим для дня ===== */
+        .calendar-grid.has-fullscreen .day-col:not(.fullscreen-day) {
+            display: none !important;
+        }
+
+        .day-schedule-wrap,
+        .day-tasks-wrap {
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        border-color 0.3s ease,
+                        opacity 0.3s ease;
+        }
+
+        .day-col.fullscreen-day {
+            grid-column: 1 / -1;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            min-height: 70vh;
+            animation: dayExpand 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes dayExpand {
+            from { opacity: 0; transform: translateY(-10px) scale(0.99); }
+            to   { opacity: 1; transform: translateY(0)     scale(1);    }
+        }
+
+        .day-col.fullscreen-day .day-header {
+            width: 100%;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Стрелочки навигации в развернутом дне (скрыты в обычном виде) */
+        .day-nav-arrow {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: color 0.2s;
+            padding: 0 15px;
+        }
+        .day-nav-arrow:hover { color: #6366f1; }
+        .day-col.fullscreen-day .day-nav-arrow { display: block; }
+
+        /* === ЗАМЕТКИ СЛЕВА === */
+        .day-col.fullscreen-day .day-tasks-wrap {
+            width: 70% !important;
+            order: 1;
+            padding-left: 0;
+            padding-right: 22px;
+            border-right: 2px dashed #e2e8f0;
+        }
+
+        .day-col.fullscreen-day .day-tasks-wrap > div[id^="tasks-"] {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 18px 20px;
+            min-height: 55vh;
+            font-size: 1.05em;
+            box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.04);
+            animation: tasksSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes tasksSlideIn {
+            from { opacity: 0; transform: translateX(-18px); }
+            to   { opacity: 1; transform: translateX(0);     }
+        }
+
+        .day-col.fullscreen-day .task-card {
+            font-size: 1em;
+            padding: 12px 14px 10px 14px;
+            margin-bottom: 10px;
+        }
+
+        /* === РАСПИСАНИЕ ПАР СПРАВА === */
+        .day-col.fullscreen-day .day-schedule-wrap {
+            width: 30% !important;
+            order: 2;
+            padding-left: 22px;
+            padding-right: 0;
+            border-right: none;
+        }
+
+        .day-col.fullscreen-day [id^="schedule-details-"] {
+            animation: scheduleSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes scheduleSlideIn {
+            from { opacity: 0; transform: translateX(18px); }
+            to   { opacity: 1; transform: translateX(0);    }
+        }
+
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item {
+            animation: itemFade 0.35s ease backwards;
+        }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(1) { animation-delay: 0.10s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(2) { animation-delay: 0.16s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(3) { animation-delay: 0.22s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(4) { animation-delay: 0.28s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(5) { animation-delay: 0.34s; }
+        .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(n+6) { animation-delay: 0.40s; }
+
+        @keyframes itemFade {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0);   }
+        }
+
+        .task-text-short { display: inline; }
+        .task-text-full { display: none; }
+        
+        .day-col.fullscreen-day .task-text-short { display: none; }
+        .day-col.fullscreen-day .task-text-full { display: block; white-space: pre-wrap; width: 100%; }
+        
+        .day-header { text-align: center; font-weight: 600; font-size: 0.9em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; color: #64748b; }
+        .day-today { border: 2px solid #6366f1; background-color: #eef2ff; }
+        .day-today .day-header { color: #4f46e5; border-bottom-color: #c7d2fe; }
+
+        .task-card { 
+            padding: 8px 10px 6px 10px; margin-bottom: 8px; border-radius: 8px; 
+            background: white; border: 1px solid #e2e8f0;
+            color: #334155; cursor: grab; font-size: 0.85em; position: relative; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s;
+            border-left-width: 5px;
+            display: flex; 
+            flex-direction: column;
+        }
+        .task-card:active { cursor: grabbing; }
+        
+        .task-text { 
+            cursor: pointer; 
+            width: 100%; 
+            white-space: pre-wrap; 
+            overflow-wrap: break-word; 
+            word-break: break-word;
+            display: block;
+        }
+        
+        .task-actions { 
+            display: flex; 
+            gap: 12px;
+            align-self: flex-end;
+            margin-top: 8px;
+        }
+        
+        .task-btn { 
+            cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1; 
+            transition: color 0.2s; text-decoration: none; 
+            padding: 4px;
+        }
+        .task-btn:hover { color: #ef4444; }
+        .task-edit:hover { color: #3b82f6; }
+        
+        .status-green { border-left-color: #10b981; }
+        .status-orange { border-left-color: #f59e0b; }
+        .status-red { border-left-color: #ef4444; }
+        .task-completed { opacity: 0.6; text-decoration: line-through; border-left-color: #94a3b8 !important; background-color: #f8fafc; }
+        
+        .schedule-item { border-left: 3px solid #6366f1; background: #f8fafc; padding: 8px; margin-bottom: 8px; font-size: 0.85em; border-radius: 0 6px 6px 0; }
+        .add-task-btn { font-size: 0.8em; cursor: pointer; color: #6366f1; text-decoration: none; display: inline-block; margin-top: 6px; font-weight: 500; }
+        .add-task-btn:hover { text-decoration: underline; }
+
+        .schedule-summary { background-color: #f1f5f9; color: #475569; padding: 8px; border-radius: 8px; font-size: 0.8em; font-weight: 600; cursor: pointer; text-align: center; user-select: none; margin-bottom: 10px; transition: background 0.2s; }
+        .schedule-summary:hover { background-color: #e2e8f0; }
+        
+        .nav-arrow { font-size: 2rem; color: #cbd5e1; background: none; border: none; padding: 0 15px; cursor: pointer; transition: color 0.2s; }
+        .nav-arrow:hover { color: #6366f1; }
+
+        .friend-col { 
+            background: #ffffff; 
+            border: 1px solid #e2e8f0;
+            border-radius: 8px; 
+            padding: 8px; 
+            min-height: 90px; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .shared-class {
+            padding: 4px 6px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 0.75em;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            background: #dcfce7;
+            color: #166534;
+        }
+        .friend-day-header {
+            text-align: center; font-weight: 600; font-size: 0.75em; color: #94a3b8;
+            margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #e2e8f0;
+        }
+        .friend-wrapper { border-top: 4px solid #6366f1; transition: opacity 0.15s, border-color 0.15s; }
+        .friend-wrapper.dragging { opacity: 0.35; }
+        .friend-wrapper.drag-over { border-top-color: #f59e0b !important; background-color: #fffbeb; }
+        .friend-drag-handle { cursor: grab; user-select: none; color: #cbd5e1; margin-right: 6px; font-weight: bold; letter-spacing: -2px; font-size: 1.1em; }
+        .friend-drag-handle:active { cursor: grabbing; }
+        .friend-drag-handle:hover { color: #6366f1; }
+        .friend-header-row { display: flex; align-items: center; }
+
+        #globalLoader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85); z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .widget-body-wrap { overflow: hidden; transition: height 0.3s ease-out; }
+        .controls-header { position: sticky; top: 15px; z-index: 1050; }
+
+        .scrollable-weeks {
+            max-height: 320px;
+            overflow-y: auto;
+            min-width: 300px;
+            padding: 4px 0;
+        }
+        .scrollable-weeks::-webkit-scrollbar { width: 8px; }
+        .scrollable-weeks::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .scrollable-weeks::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .scrollable-weeks::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .scrollable-weeks .dropdown-item.active { background-color: #6366f1; color: white; font-weight: 600; }
+
+        .autocomplete-list {
+            position: fixed;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+            max-height: 320px;
+            overflow-y: auto;
+            z-index: 11000;
+            display: none;
+            padding: 4px 0;
+        }
+        .autocomplete-list::-webkit-scrollbar { width: 8px; }
+        .autocomplete-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .autocomplete-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .autocomplete-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .autocomplete-item {
+            padding: 7px 14px;
+            cursor: pointer;
+            font-size: 0.88em;
+            color: #334155;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background 0.1s;
+        }
+        .autocomplete-item:hover,
+        .autocomplete-item.active {
+            background: #eef2ff;
+            color: #4f46e5;
+        }
+        .autocomplete-item b { color: #4f46e5; font-weight: 700; }
+
+        .autocomplete-add {
+            background: #f0fdf4;
+            color: #166534;
+            font-weight: 600;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 2px;
+        }
+        .autocomplete-add:hover,
+        .autocomplete-add.active {
+            background: #dcfce7;
+            color: #14532d;
+        }
+        .autocomplete-empty {
+            color: #94a3b8;
+            cursor: default;
+            font-style: italic;
+            padding: 10px 14px;
+            text-align: center;
+        }
+        .autocomplete-empty:hover { background: transparent; }
+    </style>
+</head>
+<body>
+
+<div id="updateNotification" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11000; display: none;">
+    <div class="bg-success text-white px-4 py-2 rounded shadow-sm fw-bold d-flex align-items-center gap-2" style="opacity: 0.95;">
+        <span style="font-size: 1.2em;">🔄</span>
+        <span id="updateNotificationText">Расписание обновлено</span>
+    </div>
+</div>
+
+<div id="globalLoader" style="display: none;">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+    <div id="loaderText" class="mt-3 fw-bold text-secondary fs-5">Загрузка...</div>
+</div>
+
+<div class="container-fluid p-3">
+    <div class="row mb-3 align-items-center bg-white p-2 rounded shadow-sm border controls-header">
+        <div class="col-md-2">
+            <h5 class="mb-0 fw-bold d-flex align-items-center" style="color: #6366f1; letter-spacing: -0.5px;">
+                <span style="font-size: 2.2rem; line-height: 0.5; margin-right: 0px; margin-left: -5px;">🦔</span>
+                <span>дневник</span>
+            </h5>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <input type="text" id="groupSelect" class="form-control" placeholder="Начните вводить группу..." autocomplete="off">
+                <button class="btn btn-primary" style="background-color: #6366f1; border: none;" onclick="fetchSemesterData()">Найти</button>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <select id="subgroupSelect" class="form-select form-select-sm" onchange="fetchSemesterData()">
+                <option value="0">Все подгруппы</option>
+                <option value="1">1 подгруппа</option>
+                <option value="2">2 подгруппа</option>
+            </select>
+        </div>
+        <div class="col-md-5 d-flex align-items-center justify-content-end gap-3">
+            <div class="dropdown me-2">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                    👁 Настройки видимости
+                </button>
+                <ul class="dropdown-menu shadow-sm p-3 border-0" style="min-width: 240px;">
+                    <li>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="toggleTeacher" checked onchange="updateDisplayPrefs()">
+                            <label class="form-check-label small fw-bold text-muted" for="toggleTeacher" style="cursor: pointer;">ФИО преподавателей</label>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="toggleLocation" checked onchange="updateDisplayPrefs()">
+                            <label class="form-check-label small fw-bold text-muted" for="toggleLocation" style="cursor: pointer;">Номера аудиторий</label>
+                        </div>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="toggleFriends" checked onchange="updateDisplayPrefs()">
+                            <label class="form-check-label small fw-bold text-muted" for="toggleFriends" style="cursor: pointer;">Подробные пары друзей</label>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <button class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="goToToday()">Сегодня</button>
+            <div class="dropdown">
+                <button class="btn btn-outline-primary btn-sm dropdown-toggle fw-bold shadow-sm" type="button" id="weekDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" style="min-width: 200px;">
+                    📅 Неделя
+                </button>
+                <ul class="dropdown-menu scrollable-weeks shadow-sm border" id="weekDropdownMenu" aria-labelledby="weekDropdownBtn"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-9 col-lg-8 mb-4">
+            <div class="d-flex align-items-stretch w-100">
+                <div class="d-flex align-items-center">
+                    <button class="nav-arrow" onclick="changeWeek(-1)">&#10094;</button>
+                </div>
+                
+                <div class="w-100 d-flex flex-column">
+                    <div class="calendar-grid flex-grow-1" id="calendar"></div>
+                    
+                    <div class="mt-4 text-start d-flex align-items-center flex-wrap gap-2 mb-2 bg-white p-2 rounded shadow-sm border" id="friendsControlsPanel">
+                        <button class="btn btn-sm btn-outline-primary fw-bold" onclick="showAddFriendModal()">+ Добавить друга</button>
+                        <div class="vr mx-1"></div>
+                        
+                        <div class="dropdown d-flex align-items-center">
+                            <button class="btn btn-sm btn-primary text-white dropdown-toggle fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                Кого показывать?
+                            </button>
+                            <div id="friendsLoader" class="spinner-border spinner-border-sm text-primary ms-2" role="status" style="display: none;"></div>
+                            <ul class="dropdown-menu shadow-sm border-0" id="friendTogglesDropdown" style="min-width: 250px;"></ul>
+                        </div>
+                    </div>
+                    
+                    <div id="friendsCalendarsContainer" class="d-flex flex-column gap-3 mb-4"></div>
+                </div>
+                
+                <div class="d-flex align-items-center">
+                    <button class="nav-arrow" onclick="changeWeek(1)">&#10095;</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-4">
+            <div class="sticky-top d-flex flex-column gap-3" style="top: 15px;">
+                
+                <div class="bg-white rounded shadow-sm border p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Общие пары</h6>
+                        <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('globalStatsBody', this)">−</button>
+                    </div>
+                    <div id="globalStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showStats()">
+                        <canvas id="globalStatsChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded shadow-sm border p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showLabs()">Лабораторные</h6>
+                        <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('labStatsBody', this)">−</button>
+                    </div>
+                    <div id="labStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showLabs()">
+                        <canvas id="labStatsChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded shadow-sm border p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h6 class="mb-0 fw-bold">Темп сдачи лаб</h6>
+                            <span class="text-muted" style="font-size: 0.7em;">Сдано / План к сегодня</span>
+                        </div>
+                        <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('labPacingBody', this)">−</button>
+                    </div>
+                    <div id="labPacingBody" class="widget-body-wrap" style="height: auto; max-height: 300px; overflow-y: auto;">
+                        <div id="labPacingContent"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка добавления друга -->
+<div class="modal fade" id="addFriendModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold">Добавить друга</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+            <label class="form-label small">Имя (или ник)</label>
+            <input type="text" id="friendName" class="form-control form-control-sm">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Группа</label>
+            <input type="text" id="friendGroup" class="form-control form-control-sm" placeholder="Начните вводить..." autocomplete="off">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Подгруппа</label>
+            <select id="friendSubgroup" class="form-select form-select-sm">
+                <option value="0">Все подгруппы</option>
+                <option value="1">1 подгруппа</option>
+                <option value="2">2 подгруппа</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Папка (группировка)</label>
+            <select id="friendCategory" class="form-control form-control-sm" onchange="handleCategorySelect(this)"></select>
+        </div>
+      </div>
+      <div class="modal-footer py-1 border-0">
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveFriend()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка статистики -->
+<div class="modal fade" id="statsModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold">Остаток пар по предметам</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="statsContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка лаб -->
+<div class="modal fade" id="labsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold">Управление лабораторными</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="labsContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка добавления в расписание (Событие/Пара) -->
+<div class="modal fade" id="customScheduleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold" id="customScheduleModalTitle">Добавить в расписание</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="csId">
+        <input type="hidden" id="csBaseDate">
+        <input type="hidden" id="csTargetDate">
+        
+        <div class="mb-3 d-flex gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="csType" id="csTypeEvent" value="1" checked onchange="toggleCsFields()">
+                <label class="form-check-label small fw-bold" for="csTypeEvent">Событие</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="csType" id="csTypeClass" value="0" onchange="toggleCsFields()">
+                <label class="form-check-label small fw-bold" for="csTypeClass">Пара</label>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small">Время</label>
+            <div class="d-flex align-items-center gap-2">
+                <input type="time" id="csTimeStart" class="form-control form-control-sm" required>
+                <span>-</span>
+                <input type="time" id="csTimeEnd" class="form-control form-control-sm" required>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label small" id="csLessonLabel">Текст события</label>
+            <input type="text" id="csLesson" class="form-control form-control-sm" placeholder="Название...">
+        </div>
+
+        <div id="csClassFields" style="display: none;">
+            <div class="mb-3">
+                <label class="form-label small">Тип пары (Лекция, ПЗ, ЛЗ)</label>
+                <input type="text" id="csTypeName" class="form-control form-control-sm" placeholder="ПЗ">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small">Преподаватель</label>
+                <input type="text" id="csTeacher" class="form-control form-control-sm" placeholder="ФИО">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small">Аудитория</label>
+                <input type="text" id="csLocation" class="form-control form-control-sm" placeholder="Ауд...">
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small">Повторение</label>
+            <select id="csRecurrence" class="form-select form-select-sm">
+                <option value="none">Только на этот день</option>
+                <option value="weekly">Каждую неделю</option>
+                <option value="biweekly">Каждую чередующуюся неделю (раз в 2 недели)</option>
+            </select>
+        </div>
+      </div>
+      <div class="modal-footer py-1 border-0 justify-content-between">
+        <button type="button" class="btn btn-danger btn-sm" id="csDeleteBtn" onclick="deleteCustomSchedule()" style="display:none;">Удалить</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveCustomSchedule()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка применения изменений (Только сейчас или Все) -->
+<div class="modal fade" id="recurrenceActionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold" id="recurrenceActionTitle">Изменение события</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p class="small mb-3 text-muted">Как применить изменения?</p>
+        <div class="d-grid gap-2">
+            <button class="btn btn-outline-primary btn-sm fw-bold" id="btnRecurrenceSingle">Только для этой недели</button>
+            <button class="btn btn-primary btn-sm fw-bold" id="btnRecurrenceAll">Для всех недель</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка настроек предмета -->
+<div class="modal fade" id="subjectSettingsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold">Настройка предмета</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="origSubjectName">
+        <div class="mb-3">
+            <label class="form-label small">Оригинальное название</label>
+            <div id="subjectOrigNameDisplay" class="text-muted small fw-bold mb-2"></div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Свое название (оставьте пустым для оригинала)</label>
+            <input type="text" id="subjectCustomName" class="form-control form-control-sm" placeholder="Например: Матеша">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Глобальное ФИО преподавателя</label>
+            <input type="text" id="subjectTeacher" class="form-control form-control-sm" placeholder="Иванов И.И.">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Глобальная аудитория</label>
+            <input type="text" id="subjectLocation" class="form-control form-control-sm" placeholder="Ауд. I-416">
+        </div>
+        <div class="mb-3">
+            <label class="form-label small">Ссылка (Moodle, Zoom, и др.)</label>
+            <input type="url" id="subjectLink" class="form-control form-control-sm" placeholder="https://...">
+        </div>
+      </div>
+      <div class="modal-footer py-1 border-0">
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveSubjectSettings()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
+    let currentBaseDate = new Date(); 
+    currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+    
+    let cachedSchedule = []; 
+    let cachedLabs = {};
+    let cachedSubjectSettings = {};
+    let globalChart = null;
+    let globalLabChart = null;
+    let currentSubjectsList = []; 
+
+    let allGroups = new Map();
+    let groupsLoaded = false;
+
+    // Кастомное расписание и состояние развёрнутого дня
+    let customScheduleItems = [];
+    let expandedDayDateStr = null;
+
+    function addGroup(name) {
+        name = String(name || '').trim();
+        if (!name) return false;
+        const key = name.toLowerCase();
+        if (allGroups.has(key)) return false;
+        allGroups.set(key, name);
+        return true;
+    }
+    function hasGroup(name) {
+        return allGroups.has(String(name || '').trim().toLowerCase());
+    }
+    function getGroupsArray() {
+        return [...allGroups.values()];
+    }
+
+    let friendsList = []; 
+    let friendsSchedules = {};
+    let visibleFriends = new Set(JSON.parse(localStorage.getItem('visibleFriends') || '[]'));
+    
+    let showTeacher = localStorage.getItem('showTeacher') !== 'false';
+    let showLocation = localStorage.getItem('showLocation') !== 'false';
+    let showFriends = localStorage.getItem('showFriends') !== 'false';
+    
+    function saveVisibleFriends() {
+        localStorage.setItem('visibleFriends', JSON.stringify([...visibleFriends]));
+    }
+
+    let _friendsRenderScheduled = false;
+    function scheduleFriendsRender() {
+        if (_friendsRenderScheduled) return;
+        _friendsRenderScheduled = true;
+        requestAnimationFrame(() => {
+            _friendsRenderScheduled = false;
+            renderFriendsCalendar();
+        });
+    }
+
+    let draggingFriendId = null;
+    let editingFriendId = null;
+    let customCategories = JSON.parse(localStorage.getItem('customCategories') || '[]');
+    let draggingDropdownFriendId = null;
+
+    function getDisplaySubjectKey(subjKey) {
+        if (cachedSubjectSettings && cachedSubjectSettings[subjKey] && cachedSubjectSettings[subjKey].custom_name) {
+            return cachedSubjectSettings[subjKey].custom_name;
+        }
+        return subjKey;
+    }
+
+    const loadingPhrases = [
+        "Грызем гранит науки...",
+        "Связываемся с деканатом...",
+        "Ищем расписание...",
+        "Раскладываем пары по полочкам...",
+        "Будим преподавателей...",
+        "Проверяем наличие окон...",
+        "Пинаем сервер...",
+        "Сканируем мудл...",
+        "Переписываем программу...",
+        "Пьем чай...",
+        "Слушаем лекцию...",
+        "Взламываем калькулятор..."
+    ];
+    let loaderInterval = null;
+
+    function showGlobalLoader() { 
+        let idx = 0;
+        document.getElementById('loaderText').textContent = loadingPhrases[idx];
+        document.getElementById('globalLoader').style.display = 'flex'; 
+        
+        loaderInterval = setInterval(() => {
+            idx = (idx + 1) % loadingPhrases.length;
+            document.getElementById('loaderText').textContent = loadingPhrases[idx];
+        }, 3000);
+    }
+
+    function hideGlobalLoader() { 
+        document.getElementById('globalLoader').style.display = 'none'; 
+        if (loaderInterval) clearInterval(loaderInterval);
+    }
+
+    function showUpdateNotification(message) {
+        let notif = document.getElementById('updateNotification');
+        document.getElementById('updateNotificationText').textContent = message;
+        notif.style.display = 'block';
+        
+        notif.animate([
+            {opacity: 0, transform: 'translateY(20px)'}, 
+            {opacity: 1, transform: 'translateY(0)'}
+        ], {duration: 300, fill: 'forwards'});
+        
+        setTimeout(() => {
+            let anim = notif.animate([
+                {opacity: 1, transform: 'translateY(0)'}, 
+                {opacity: 0, transform: 'translateY(20px)'}
+            ], {duration: 300, fill: 'forwards'});
+            anim.onfinish = () => notif.style.display = 'none';
+        }, 3000);
+    }
+
+    function toggleWidget(bodyId, btn) {
+        let body = document.getElementById(bodyId);
+        if (body.style.height === '0px') {
+            body.style.height = body.dataset.originalHeight || (bodyId === 'labPacingBody' ? 'auto' : '160px');
+            setTimeout(() => { body.style.overflow = 'visible'; }, 300);
+            btn.textContent = '−';
+            localStorage.setItem('widget_' + bodyId, 'expanded');
+        } else {
+            if(!body.dataset.originalHeight) {
+                let h = body.style.height;
+                if (!h || h === 'auto') h = window.getComputedStyle(body).height;
+                body.dataset.originalHeight = h;
+            }
+            body.style.overflow = 'hidden';
+            body.style.height = '0px';
+            btn.textContent = '+';
+            localStorage.setItem('widget_' + bodyId, 'collapsed');
+        }
+    }
+
+    function getLocalDateStr(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function fixTime(str) {
+        if (!str) return '';
+        return str.replace('13:50', '14:00').replace('15:20', '15:30');
+    }
+
+    function applyTimeFix(scheduleArray) {
+        if(!scheduleArray) return [];
+        scheduleArray.forEach(item => {
+            if(item.time_range) item.time_range = fixTime(item.time_range);
+        });
+        return scheduleArray;
+    }
+
+    function isScheduleDifferent(newSched, oldSched) {
+        if (!newSched || !oldSched) return true;
+        if (newSched.length !== oldSched.length) return true;
+        
+        const getHash = (arr) => arr.map(x => `${x.date}_${x.n}_${x.lesson}_${x.type_name}`).sort().join('|');
+        return getHash(newSched) !== getHash(oldSched);
+    }
+
+    function getCampus(item) {
+        if (!item) return 'unknown';
+        
+        let roman = null;
+        
+        if (item.location) {
+            let loc = item.location.toUpperCase().trim();
+            let m = loc.match(/^(VIII|VII|IX|VI|IV|V|III|II|I)(?=[^A-ZА-Яa-zа-я0-9]|$)/);
+            if (m) roman = m[1];
+        }
+        
+        if (!roman && item.lesson) {
+            let txt = item.lesson.toUpperCase();
+            let m2 = txt.match(/(?:АУД|КАБ|КОРП|КОРПУС|АУДИТОРИЯ)[.\s]*[:\-]?\s*(VIII|VII|IX|VI|IV|V|III|II|I)(?:[^A-ZА-Я0-9]|$)/);
+            if (m2) roman = m2[1];
+        }
+        
+        if (roman === 'VII' || roman === 'VIII' || roman === 'IX') return 'galosha';
+        if (roman === 'V' || roman === 'VI') return 'gogol';
+        if (roman === 'I' || roman === 'II' || roman === 'III' || roman === 'IV') return 'univer';
+        
+        return 'unknown';
+    }
+
+    // ========================================================
+    //   АВТОКОМПЛИТ ГРУПП (T9-стиль с фильтрацией)
+    // ========================================================
+    function escapeHtml(s, forAttr = false) {
+        let r = String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        if (!forAttr) r = r.replace(/'/g, '&#39;');
+        return r;
+    }
+    const escapeAttr = (s) => escapeHtml(s, true);
+    
+    function highlightMatch(text, query) {
+        if (!query) return escapeHtml(text);
+        let lower = text.toLowerCase();
+        let q = query.toLowerCase();
+        let idx = lower.indexOf(q);
+        if (idx === -1) return escapeHtml(text);
+        return escapeHtml(text.slice(0, idx)) + '<b>' + escapeHtml(text.slice(idx, idx + q.length)) + '</b>' + escapeHtml(text.slice(idx + q.length));
+    }
+
+    function initGroupAutocomplete(input) {
+        if (!input) return;
+
+        let dropdown = document.createElement('div');
+        dropdown.className = 'autocomplete-list';
+        document.body.appendChild(dropdown);
+
+        let currentFocus = -1;
+
+        function positionDropdown() {
+            let rect = input.getBoundingClientRect();
+            dropdown.style.left = rect.left + 'px';
+            dropdown.style.top = (rect.bottom + 2) + 'px';
+            dropdown.style.width = Math.max(rect.width, 280) + 'px';
+        }
+
+        function hide() {
+            dropdown.style.display = 'none';
+            currentFocus = -1;
+        }
+
+        function getItems() {
+            return dropdown.querySelectorAll('.autocomplete-item:not(.autocomplete-empty)');
+        }
+
+        function updateActive() {
+            let items = getItems();
+            items.forEach((it, i) => it.classList.toggle('active', i === currentFocus));
+            if (items[currentFocus]) items[currentFocus].scrollIntoView({ block: 'nearest' });
+        }
+
+        function render() {
+            let query = input.value.trim();
+            let lower = query.toLowerCase();
+
+            const groupsArr = getGroupsArray();
+            let matches = [];
+            if (!lower) {
+                matches = groupsArr.slice(0, 40);
+            } else {
+                let starts = [], contains = [];
+                for (let g of groupsArr) {
+                    let gl = g.toLowerCase();
+                    if (gl.startsWith(lower)) starts.push(g);
+                    else if (gl.includes(lower)) contains.push(g);
+                }
+                matches = starts.concat(contains).slice(0, 50);
+            }
+
+            let exact = lower && allGroups.has(lower);
+
+            let html = '';
+            if (matches.length === 0 && !query) {
+                html = '<div class="autocomplete-item autocomplete-empty">Справочник групп пуст</div>';
+            } else if (matches.length === 0) {
+                html = '<div class="autocomplete-item autocomplete-empty">Ничего не найдено</div>';
+            } else {
+                matches.forEach(g => {
+                    html += `<div class="autocomplete-item" data-value="${escapeAttr(g)}">${highlightMatch(g, query)}</div>`;
+                });
+            }
+
+            if (query && !exact) {
+                html += `<div class="autocomplete-item autocomplete-add" data-add="${escapeAttr(query)}">➕ Добавить группу «${escapeHtml(query)}»</div>`;
+            }
+
+            dropdown.innerHTML = html;
+            positionDropdown();
+            dropdown.style.display = 'block';
+            currentFocus = -1;
+        }
+
+        input.addEventListener('focus', () => render());
+        input.addEventListener('input', () => render());
+        input.addEventListener('blur', () => setTimeout(hide, 180));
+
+        input.addEventListener('keydown', (e) => {
+            let items = getItems();
+            if (dropdown.style.display !== 'block') {
+                if (e.key === 'ArrowDown') { render(); e.preventDefault(); }
+                return;
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentFocus = (currentFocus + 1) % Math.max(items.length, 1);
+                updateActive();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentFocus = (currentFocus - 1 + items.length) % Math.max(items.length, 1);
+                updateActive();
+            } else if (e.key === 'Enter') {
+                if (currentFocus > -1 && items[currentFocus]) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    items[currentFocus].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                } else if (items.length > 0 && input.value.trim()) {
+                    if (allGroups.has(input.value.trim().toLowerCase())) hide();
+                }
+            } else if (e.key === 'Escape') {
+                hide();
+            }
+        });
+
+        dropdown.addEventListener('mousedown', async (e) => {
+            let item = e.target.closest('.autocomplete-item');
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (item.dataset.value) {
+                input.value = item.dataset.value;
+                hide();
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (item.dataset.add) {
+                let name = item.dataset.add.trim();
+                if (!name) return;
+                try {
+                    let r = await fetch('/api/groups/custom', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name })
+                    });
+                    let data = await r.json();
+                    if (data.success) {
+                        addGroup(name);
+                        input.value = name;
+                        hide();
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                } catch (err) { console.error(err); }
+            }
+        });
+
+        window.addEventListener('scroll', () => {
+            if (dropdown.style.display === 'block') positionDropdown();
+        }, true);
+        window.addEventListener('resize', () => {
+            if (dropdown.style.display === 'block') positionDropdown();
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        try {
+            showGlobalLoader();
+            
+            ['globalStatsBody', 'labStatsBody', 'labPacingBody'].forEach(bodyId => {
+                let state = localStorage.getItem('widget_' + bodyId);
+                if (state === 'collapsed') {
+                    let body = document.getElementById(bodyId);
+                    if (body) {
+                        let btn = body.previousElementSibling.querySelector('button');
+                        if (!body.dataset.originalHeight) {
+                            body.dataset.originalHeight = body.style.height || (bodyId === 'labPacingBody' ? 'auto' : '160px');
+                        }
+                        body.style.overflow = 'hidden';
+                        body.style.height = '0px';
+                        if (btn) btn.textContent = '+';
+                    }
+                }
+            });
+            
+            document.getElementById('toggleTeacher').checked = showTeacher;
+            document.getElementById('toggleLocation').checked = showLocation;
+            document.getElementById('toggleFriends').checked = showFriends;
+            
+            await ensureGroupsLoaded(); 
+
+            initGroupAutocomplete(document.getElementById('groupSelect'));
+            initGroupAutocomplete(document.getElementById('friendGroup'));
+
+            if(localStorage.getItem('savedGroup')) {
+                document.getElementById('groupSelect').value = localStorage.getItem('savedGroup');
+                if(localStorage.getItem('savedSubgroup')) {
+                    document.getElementById('subgroupSelect').value = localStorage.getItem('savedSubgroup');
+                }
+                await fetchSemesterData(); 
+            } else {
+                updateWeekDropdown();
+                renderCalendar();
+                renderCharts();
+                hideGlobalLoader();
+                fetchFriends();
+            }
+        } catch(e) {
+            console.error(e);
+            hideGlobalLoader();
+        }
+    });
+
+    function updateDisplayPrefs() {
+        showTeacher = document.getElementById('toggleTeacher').checked;
+        showLocation = document.getElementById('toggleLocation').checked;
+        showFriends = document.getElementById('toggleFriends').checked;
+        localStorage.setItem('showTeacher', showTeacher);
+        localStorage.setItem('showLocation', showLocation);
+        localStorage.setItem('showFriends', showFriends);
+        renderCalendar();
+    }
+
+    async function ensureGroupsLoaded() {
+        if (groupsLoaded) return;
+        try {
+            let r = await fetch('/api/groups');
+            let groups = await r.json();
+            if (groups && Array.isArray(groups)) {
+                groups.forEach(g => {
+                    let name = typeof g === 'string' ? g : (g.name || g.title || JSON.stringify(g));
+                    addGroup(name);
+                });
+            }
+            groupsLoaded = true;
+        } catch(e) { console.log("Справочник групп недоступен."); }
+    }
+
+    function updateWeekDropdown() {
+        let menu = document.getElementById("weekDropdownMenu");
+        let btn = document.getElementById("weekDropdownBtn");
+        if (!menu || !btn) return;
+        menu.innerHTML = "";
+        
+        let realBase = new Date();
+        realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
+        realBase.setHours(0,0,0,0);
+        
+        let currBase = new Date(currentBaseDate);
+        currBase.setHours(0,0,0,0);
+        
+        let currentOffset = Math.round((currBase - realBase) / (7 * 24 * 60 * 60 * 1000));
+        
+        for (let i = -20; i <= 20; i++) {
+            let d = new Date(realBase);
+            d.setDate(d.getDate() + (i * 7));
+            let endD = new Date(d);
+            endD.setDate(endD.getDate() + 6);
+            
+            let label = `${d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endD.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
+            if (i === 0) label = `🏠 Текущая: ${label}`;
+            
+            let li = document.createElement('li');
+            let a = document.createElement('a');
+            a.className = 'dropdown-item' + (i === currentOffset ? ' active' : '');
+            a.href = '#';
+            a.textContent = label;
+            a.onclick = (e) => { e.preventDefault(); jumpToWeek(i); };
+            li.appendChild(a);
+            menu.appendChild(li);
+        }
+        
+        let dBtn = new Date(realBase);
+        dBtn.setDate(dBtn.getDate() + (currentOffset * 7));
+        let endDBtn = new Date(dBtn);
+        endDBtn.setDate(endDBtn.getDate() + 6);
+        btn.textContent = `📅 ${dBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endDBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
+        
+        btn.addEventListener('shown.bs.dropdown', () => {
+            setTimeout(() => {
+                let active = menu.querySelector('.dropdown-item.active');
+                if (active) active.scrollIntoView({ block: 'center' });
+            }, 30);
+        }, { once: true });
+    }
+
+    function jumpToWeek(offsetVal) {
+        let realBase = new Date();
+        realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
+        currentBaseDate = new Date(realBase);
+        currentBaseDate.setDate(currentBaseDate.getDate() + (parseInt(offsetVal) * 7));
+        renderCalendar();
+    }
+
+    function goToToday() {
+        let realTodayStr = getLocalDateStr(new Date());
+        currentBaseDate = new Date();
+        currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+        
+        if (expandedDayDateStr !== null) {
+            expandedDayDateStr = realTodayStr;
+        }
+        
+        renderCalendar();
+    }
+    
+    function changeWeek(offset) {
+        currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
+        renderCalendar();
+    }
+
+    async function fetchSemesterData() {
+        const group = document.getElementById("groupSelect").value.trim();
+        const subgroup = document.getElementById("subgroupSelect").value;
+        if(!group) return;
+
+        showGlobalLoader();
+        await ensureGroupsLoaded();
+
+        if (allGroups.size > 0 && !hasGroup(group)) {
+            hideGlobalLoader();
+            let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу и попробовать загрузить расписание?`);
+            if (!add) return;
+            try {
+                await fetch('/api/groups/custom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: group })
+                });
+                addGroup(group);
+            } catch(e) { console.error(e); }
+            showGlobalLoader();
+        }
+
+        localStorage.setItem('savedGroup', group);
+        localStorage.setItem('savedSubgroup', subgroup);
+        
+        document.getElementById("calendar").innerHTML = "<h6 class='text-center w-100 mt-5'>Загрузка семестра...</h6>";
+
+        try {
+            let [resSched, resCustom] = await Promise.all([
+                fetch(`/api/schedule_all?group=${encodeURIComponent(group)}&subgroup=${subgroup}`),
+                fetch(`/api/custom_schedule?group=${encodeURIComponent(group)}`)
+            ]);
+            let data = await resSched.json();
+            customScheduleItems = await resCustom.json();
+            if (!Array.isArray(customScheduleItems)) customScheduleItems = [];
+            cachedSchedule = applyTimeFix(data);
+            await updateLabsCache();
+            await fetchSubjectSettings();
+            renderCalendar();
+            renderCharts();
+        } catch (e) {
+            document.getElementById("calendar").innerHTML = `<h6 class='text-center text-danger w-100 mt-5'>Ошибка загрузки</h6>`;
+        }
+        
+        hideGlobalLoader();
+        fetchFriends(); 
+        
+        syncSemesterData(group, subgroup);
+    }
+
+    async function syncSemesterData(group, subgroup) {
+        try {
+            let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(group)}&subgroup=${subgroup}`);
+            let data = await res.json();
+            let newData = applyTimeFix(data);
+            
+            if (Array.isArray(newData) && newData.length > 0) {
+                if (cachedSchedule && cachedSchedule.length > 0 && newData.length < cachedSchedule.length * 0.9) {
+                    console.error("Критический сбой СевГУ: попытка затереть расписание. Фоновое обновление отменено!");
+                    return;
+                }
+                
+                if (isScheduleDifferent(newData, cachedSchedule)) {
+                    cachedSchedule = newData;
+                    renderCalendar();
+                    renderCharts();
+                    showUpdateNotification("Ваше расписание обновлено в фоне");
+                    console.log("Ваше расписание было обновлено в фоне.");
+                }
+            }
+        } catch (e) { console.error("Ошибка синхронизации расписания", e); }
+    }
+
+    async function updateLabsCache() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group) return;
+        let res = await fetch(`/api/labs?group=${encodeURIComponent(group)}`);
+        cachedLabs = await res.json();
+    }
+
+    function showStats() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
+
+        let modal = new bootstrap.Modal(document.getElementById('statsModal'));
+        modal.show();
+        
+        let stats = {};
+        let todayStr = getLocalDateStr(new Date());
+
+        cachedSchedule.forEach(item => {
+            let subject = item.lesson;
+            let type = item.type_name;
+            
+            if (!stats[subject]) stats[subject] = { display: subject, types: {} };
+            if (!stats[subject].types[type]) stats[subject].types[type] = { past: 0, future: 0 };
+            
+            if (item.date < todayStr) {
+                stats[subject].types[type].past++;
+            } else {
+                stats[subject].types[type].future++;
+            }
+        });
+        
+        let html = '<div class="row">';
+        for(let subject in stats) {
+            let displayTitle = stats[subject].display;
+            html += `<div class="col-md-6 mb-3"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-light fw-bold" style="font-size:0.9em" title="${escapeHtml(subject)}">${escapeHtml(displayTitle)}</div><div class="card-body py-2">`;
+            html += `<div class="row">`;
+            for(let type in stats[subject].types) {
+                let past = stats[subject].types[type].past;
+                let future = stats[subject].types[type].future;
+                html += `
+                    <div class="col-6 mb-2">
+                        <div class="border rounded p-2 text-center bg-white shadow-sm">
+                            <small class="text-muted d-block border-bottom mb-1" style="font-size:0.75em">${type}</small>
+                            <span class="text-danger fw-bold" title="Прошло">✔ ${past}</span> | 
+                            <span class="text-success fw-bold" title="Осталось">⏳ ${future}</span>
+                        </div>
+                    </div>`;
+            }
+            html += `</div></div></div></div>`;
+        }
+        html += '</div>';
+        
+        if(Object.keys(stats).length === 0) html = "<p class='text-center'>Нет данных для выбранной группы.</p>";
+        document.getElementById('statsContent').innerHTML = html;
+    }
+
+    function showLabs() {
+        const group = document.getElementById("groupSelect").value.trim();
+        if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
+        renderLabsContent();
+        let modal = new bootstrap.Modal(document.getElementById('labsModal'));
+        modal.show();
+    }
+
+    function renderLabsContent() {
+        let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
+        let uniqueSubjects = [...new Set(labItems.map(item => `${item.lesson} (${item.type_name})`))].sort();
+        currentSubjectsList = uniqueSubjects;
+
+        let html = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted small">Внесите изменения и нажмите "Сохранить все"</span>
+                <button class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
+            </div>
+            <div class="list-group mb-3">
+        `;
+
+        uniqueSubjects.forEach((subjKey, idx) => {
+            let comp = cachedLabs[subjKey] ? cachedLabs[subjKey].completed : 0;
+            let tot = cachedLabs[subjKey] ? cachedLabs[subjKey].total : 0;
+            let percent = tot > 0 ? Math.round((comp / tot) * 100) : 0;
+            
+            let displaySubj = getDisplaySubjectKey(subjKey);
+
+            html += `
+                <div class="list-group-item border-0 shadow-sm mb-2 rounded">
+                    <h6 class="mb-2 fw-bold" style="font-size:0.9em" title="${escapeHtml(subjKey)}">${escapeHtml(displaySubj)}</h6>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span style="font-size: 0.85em;">Сдано:</span>
+                        <input type="number" id="lab-comp-${idx}" class="form-control form-control-sm" style="width: 70px" value="${comp}" min="0">
+                        <span style="font-size: 0.85em;">из</span>
+                        <input type="number" id="lab-tot-${idx}" class="form-control form-control-sm" style="width: 70px" value="${tot}" min="0">
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar ${percent === 100 ? 'bg-success' : 'bg-info'}" 
+                             role="progressbar" style="width: ${percent}%"></div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
+        </div>`;
+        
+        if(uniqueSubjects.length === 0) html = "<p class='text-center'>Нет данных.</p>";
+        document.getElementById('labsContent').innerHTML = html;
+    }
+
+    async function saveAllLabs() {
+        const group = document.getElementById("groupSelect").value.trim();
+        let payload = [];
+        currentSubjectsList.forEach((subject, idx) => {
+            let comp = parseInt(document.getElementById(`lab-comp-${idx}`).value) || 0;
+            let tot = parseInt(document.getElementById(`lab-tot-${idx}`).value) || 0;
+            if (comp > tot) comp = tot;
+            payload.push({ group, subject, completed: comp, total: tot });
+        });
+        await fetch('/api/labs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        await updateLabsCache(); 
+        renderCharts(); 
+        let modal = bootstrap.Modal.getInstance(document.getElementById('labsModal'));
+        if(modal) modal.hide();
+    }
+
+    function renderCharts() {
+        let passed = 0, remaining = 0;
+        let todayStr = getLocalDateStr(new Date());
+
+        cachedSchedule.forEach(item => {
+            if(item.date < todayStr) passed++;
+            else remaining++;
+        });
+
+        const ctx1 = document.getElementById('globalStatsChart').getContext('2d');
+        if(globalChart) {
+            globalChart.data.datasets[0].data = [passed, remaining];
+            globalChart.update();
+        } else {
+            globalChart = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Прошло', 'Осталось'],
+                    datasets: [{
+                        data: [passed, remaining],
+                        backgroundColor: ['#6366f1', '#cbd5e1'], 
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
+        let validSubjects = new Set(labItems.map(item => `${item.lesson} (${item.type_name})`));
+
+        let totLabs = 0, compLabs = 0;
+        for (let subj in cachedLabs) {
+            if (!validSubjects.has(subj)) continue;
+            totLabs += cachedLabs[subj].total;
+            compLabs += cachedLabs[subj].completed;
+        }
+        let uncompLabs = Math.max(0, totLabs - compLabs);
+        let labData = totLabs === 0 ? [0, 1] : [compLabs, uncompLabs];
+        let labColors = totLabs === 0 ? ['#f1f5f9', '#f1f5f9'] : ['#14b8a6', '#f59e0b']; 
+
+        const ctx2 = document.getElementById('labStatsChart').getContext('2d');
+        if(globalLabChart) {
+            globalLabChart.data.datasets[0].data = labData;
+            globalLabChart.data.datasets[0].backgroundColor = labColors;
+            globalLabChart.update();
+        } else {
+            globalLabChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: totLabs === 0 ? ['Нет данных', ''] : ['Сдано', 'Осталось'],
+                    datasets: [{ data: labData, backgroundColor: labColors, borderWidth: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+        renderLabPacing();
+    }
+
+    function renderLabPacing() {
+        const container = document.getElementById('labPacingContent');
+        if (!cachedLabs || Object.keys(cachedLabs).length === 0) {
+            container.innerHTML = "<div class='text-center text-muted small mt-2'>Нет данных</div>";
+            return;
+        }
+        
+        let todayStr = getLocalDateStr(new Date());
+        let scheduleStats = {};
+        
+        cachedSchedule.forEach(item => {
+            if (item.type_name === 'ЛЗ' || item.type_name === 'ПЗ') {
+                let subjKey = `${item.lesson} (${item.type_name})`;
+                if (!scheduleStats[subjKey]) scheduleStats[subjKey] = { passed: 0, total: 0 };
+                
+                scheduleStats[subjKey].total++;
+                if (item.date < todayStr) {
+                    scheduleStats[subjKey].passed++;
+                }
+            }
+        });
+
+        let validSubjects = new Set(Object.keys(scheduleStats));
+        let html = '<div class="list-group list-group-flush">';
+        let hasData = false;
+        
+        for (let subj in cachedLabs) {
+            if (!validSubjects.has(subj)) continue; 
+            
+            let data = cachedLabs[subj];
+            if (data.total === 0) continue;
+            
+            hasData = true;
+            let stats = scheduleStats[subj];
+            
+            let expectedCount = 0;
+            if (stats.total > 1) {
+                let paceRatio = stats.passed / (stats.total - 1);
+                expectedCount = Math.round(data.total * paceRatio);
+            } else if (stats.passed >= 1) {
+                expectedCount = data.total;
+            }
+            
+            if (expectedCount > data.total) expectedCount = data.total;
+            if (expectedCount < 0) expectedCount = 0;
+
+            let actualCount = data.completed;
+            let statusClass = actualCount >= expectedCount ? 'text-success' : 'text-danger';
+            let icon = actualCount >= expectedCount ? '✅' : '⚠️';
+            
+            let displaySubj = getDisplaySubjectKey(subj);
+
+            html += `
+                <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
+                    <span class="text-truncate me-2" style="max-width: 65%; font-size: 0.8em;" title="${escapeHtml(displaySubj)}">${escapeHtml(displaySubj)}</span>
+                    <span class="fw-bold ${statusClass}" style="font-size: 0.8em; white-space: nowrap;">
+                        ${actualCount} / ${expectedCount} ${icon}
+                    </span>
+                </div>`;
+        }
+        html += '</div>';
+        
+        if (!hasData) {
+            container.innerHTML = "<div class='text-center text-muted small mt-2'>Нет данных</div>";
+        } else {
+            container.innerHTML = html;
+        }
+    }
+
+    // ========================================================
+    //   КАСТОМНОЕ РАСПИСАНИЕ (события и пары пользователя)
+    // ========================================================
+    function getCustomItemsForDate(dateStr) {
+        let items = [];
+        let [ty, tm, td] = dateStr.split('-');
+        let tDate = new Date(ty, tm-1, td);
+        
+        customScheduleItems.forEach(item => {
+            let [by, bm, bd] = item.base_date.split('-');
+            let bDate = new Date(by, bm-1, bd);
+            
+            if (tDate < bDate) return; 
+            
+            let exceptions = [];
+            try { exceptions = JSON.parse(item.exceptions || '[]'); } catch(e) {}
+            if (exceptions.includes(dateStr)) return;
+            
+            let diffDays = Math.round(Math.abs(tDate - bDate) / (1000 * 60 * 60 * 24));
+            let match = false;
+            
+            if (item.recurrence === 'none' && diffDays === 0) match = true;
+            else if (item.recurrence === 'weekly' && diffDays % 7 === 0) match = true;
+            else if (item.recurrence === 'biweekly' && diffDays % 14 === 0) match = true;
+            
+            if (match) {
+                items.push({
+                    is_custom: true,
+                    custom_id: item.id,
+                    base_date: item.base_date,
+                    recurrence: item.recurrence,
+                    exceptions: item.exceptions,
+                    is_event: item.is_event === 1,
+                    date: dateStr,
+                    time_range: item.time_range,
+                    lesson: item.lesson,
+                    type_name: item.type_name,
+                    teacher: item.teacher,
+                    location: item.location
+                });
+            }
+        });
+        return items;
+    }
+
+    function toggleCsFields() {
+        let isEvent = document.getElementById('csTypeEvent').checked;
+        document.getElementById('csClassFields').style.display = isEvent ? 'none' : 'block';
+        document.getElementById('csLessonLabel').textContent = isEvent ? 'Текст события' : 'Название предмета';
+    }
+
+    function parseTimeRangeToMins(tr) {
+        if (!tr) return [0, 0];
+        let parts = tr.split('-');
+        let s = parts[0].trim().split(':');
+        let e = parts[1].trim().split(':');
+        return [parseInt(s[0]||0)*60 + parseInt(s[1]||0), parseInt(e[0]||0)*60 + parseInt(e[1]||0)];
+    }
+    
+    function isTimeOverlap(tr1, tr2) {
+        let [s1, e1] = parseTimeRangeToMins(tr1);
+        let [s2, e2] = parseTimeRangeToMins(tr2);
+        return Math.max(s1, s2) < Math.min(e1, e2);
+    }
+
+    function checkScheduleConflict(baseDateStr, timeRange, recurrence, ignoreCustomId = null) {
+        let datesToCheck = [];
+        let [y, m, d] = baseDateStr.split('-');
+        let currD = new Date(y, m-1, d);
+        
+        if (recurrence === 'none') {
+            datesToCheck.push(baseDateStr);
+        } else {
+            let limit = recurrence === 'weekly' ? 25 : 12;
+            for(let i=0; i<limit; i++) {
+                datesToCheck.push(getLocalDateStr(new Date(currD)));
+                currD.setDate(currD.getDate() + (recurrence === 'weekly' ? 7 : 14));
+            }
+        }
+        
+        for (let checkDate of datesToCheck) {
+            let dayConflicts = [];
+            
+            let daySched = cachedSchedule.filter(x => x.date === checkDate);
+            for (let item of daySched) {
+                if (isTimeOverlap(timeRange, item.time_range)) {
+                    dayConflicts.push(`парой "${item.lesson}"`);
+                }
+            }
+            
+            let customSched = getCustomItemsForDate(checkDate);
+            for (let item of customSched) {
+                if (item.custom_id == ignoreCustomId) continue;
+                if (isTimeOverlap(timeRange, item.time_range)) {
+                    let kind = item.is_event ? 'событием' : 'кастомной парой';
+                    dayConflicts.push(`${kind} "${item.lesson}"`);
+                }
+            }
+            
+            if (dayConflicts.length === 1) {
+                return { conflict: true, msg: `Внимание! На ${checkDate} обнаружено пересечение с ${dayConflicts[0]}.` };
+            } else if (dayConflicts.length > 1) {
+                return { conflict: true, msg: `Внимание! На ${checkDate} присутствуют многочисленные пересечения.` };
+            }
+        }
+        return null;
+    }
+
+    function askRecurrenceMode(actionTitle, targetDate) {
+        return new Promise((resolve) => {
+            document.getElementById('recurrenceActionTitle').textContent = actionTitle;
+            
+            let btnSingle = document.getElementById('btnRecurrenceSingle');
+            let btnAll = document.getElementById('btnRecurrenceAll');
+            
+            btnSingle.textContent = `Только на этой неделе (${targetDate})`;
+
+            let modalEl = document.getElementById('recurrenceActionModal');
+            let modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+
+            let newBtnSingle = btnSingle.cloneNode(true);
+            btnSingle.parentNode.replaceChild(newBtnSingle, btnSingle);
+            
+            let newBtnAll = btnAll.cloneNode(true);
+            btnAll.parentNode.replaceChild(newBtnAll, btnAll);
+
+            let resolved = false;
+
+            newBtnSingle.onclick = () => {
+                resolved = true;
+                modalEl.addEventListener('hidden.bs.modal', () => resolve("1"), { once: true });
+                modal.hide();
+            };
+
+            newBtnAll.onclick = () => {
+                resolved = true;
+                modalEl.addEventListener('hidden.bs.modal', () => resolve("2"), { once: true });
+                modal.hide();
+            };
+
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!resolved) resolve(null);
+            }, { once: true });
+
+            modal.show();
+        });
+    }
+
+    function openCustomScheduleModal(dateStr, itemId = null) {
+        document.getElementById('csTargetDate').value = dateStr;
+        let modalTitle = document.getElementById('customScheduleModalTitle');
+        let delBtn = document.getElementById('csDeleteBtn');
+        
+        if (itemId) {
+            let item = customScheduleItems.find(i => i.id === itemId);
+            if (!item) return;
+            document.getElementById('csId').value = item.id;
+            document.getElementById('csBaseDate').value = item.base_date;
+            modalTitle.textContent = 'Редактировать';
+            delBtn.style.display = 'block';
+            
+            if (item.is_event) document.getElementById('csTypeEvent').checked = true;
+            else document.getElementById('csTypeClass').checked = true;
+            
+            let timeParts = item.time_range.split('-');
+            document.getElementById('csTimeStart').value = timeParts[0].trim();
+            document.getElementById('csTimeEnd').value = timeParts[1].trim();
+            
+            document.getElementById('csLesson').value = item.lesson;
+            document.getElementById('csTypeName').value = item.type_name || '';
+            document.getElementById('csTeacher').value = item.teacher || '';
+            document.getElementById('csLocation').value = item.location || '';
+            document.getElementById('csRecurrence').value = item.recurrence || 'none';
+        } else {
+            document.getElementById('csId').value = '';
+            document.getElementById('csBaseDate').value = dateStr; 
+            modalTitle.textContent = 'Добавить в расписание';
+            delBtn.style.display = 'none';
+            document.getElementById('csTypeEvent').checked = true;
+            
+            let now = new Date();
+            let h = now.getHours();
+            document.getElementById('csTimeStart').value = String(h).padStart(2, '0') + ':00';
+            document.getElementById('csTimeEnd').value = String((h + 1) % 24).padStart(2, '0') + ':00';
+            
+            document.getElementById('csLesson').value = '';
+            document.getElementById('csTypeName').value = '';
+            document.getElementById('csTeacher').value = '';
+            document.getElementById('csLocation').value = '';
+            document.getElementById('csRecurrence').value = 'none';
+        }
+        toggleCsFields();
+        
+        let modalEl = document.getElementById('customScheduleModal');
+        let modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    async function saveCustomSchedule() {
+        let group = document.getElementById('groupSelect').value.trim();
+        let id = document.getElementById('csId').value;
+        let targetDate = document.getElementById('csTargetDate').value;
+        
+        let start = document.getElementById('csTimeStart').value;
+        let end = document.getElementById('csTimeEnd').value;
+        let time_range = `${start} - ${end}`;
+        
+        let payload = {
+            group: group,
+            base_date: document.getElementById('csBaseDate').value,
+            is_event: document.getElementById('csTypeEvent').checked ? 1 : 0,
+            time_range: time_range,
+            lesson: document.getElementById('csLesson').value.trim(),
+            type_name: document.getElementById('csTypeName').value.trim(),
+            teacher: document.getElementById('csTeacher').value.trim(),
+            location: document.getElementById('csLocation').value.trim(),
+            recurrence: document.getElementById('csRecurrence').value,
+            exceptions: '[]'
+        };
+        
+        if (!start || !end || !payload.lesson) return alert("Заполните время и название!");
+        
+        let conflict = checkScheduleConflict(payload.base_date, payload.time_range, payload.recurrence, id);
+        if (conflict && !confirm(conflict.msg + "\n\nВсё равно сохранить?")) return;
+        
+        if (id) {
+            let originalItem = customScheduleItems.find(i => i.id == id);
+            if (originalItem && originalItem.recurrence !== 'none') {
+                let mode = await askRecurrenceMode("Изменить событие", targetDate);
+                
+                if (mode === "1") {
+                    let ex = JSON.parse(originalItem.exceptions || '[]');
+                    if (!ex.includes(targetDate)) ex.push(targetDate);
+                    await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...originalItem, exceptions: JSON.stringify(ex)}) });
+                    
+                    payload.base_date = targetDate;
+                    payload.recurrence = 'none';
+                    await fetch(`/api/custom_schedule`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                    
+                    let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+                    if (mainModal) mainModal.hide();
+                    await refreshCustomSchedule();
+                    return;
+                } else if (mode !== "2") {
+                    return;
+                }
+            }
+            payload.exceptions = originalItem ? originalItem.exceptions : '[]';
+            await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        } else {
+            await fetch(`/api/custom_schedule`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        }
+        
+        let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+        if (mainModal) mainModal.hide();
+        await refreshCustomSchedule();
+    }
+
+    async function deleteCustomSchedule() {
+        let id = document.getElementById('csId').value;
+        let targetDate = document.getElementById('csTargetDate').value;
+        let originalItem = customScheduleItems.find(i => i.id == id);
+        
+        if (originalItem && originalItem.recurrence !== 'none') {
+            let mode = await askRecurrenceMode("Удалить событие", targetDate);
+            
+            if (mode === "1") {
+                let ex = JSON.parse(originalItem.exceptions || '[]');
+                if (!ex.includes(targetDate)) ex.push(targetDate);
+                await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...originalItem, exceptions: JSON.stringify(ex)}) });
+                
+                let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+                if (mainModal) mainModal.hide();
+                await refreshCustomSchedule();
+                return;
+            } else if (mode !== "2") {
+                return;
+            }
+        } else {
+            if (!confirm('Удалить этот элемент?')) return;
+        }
+        
+        await fetch(`/api/custom_schedule/${id}`, { method: 'DELETE' });
+        
+        let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+        if (mainModal) mainModal.hide();
+        await refreshCustomSchedule();
+    }
+
+    async function refreshCustomSchedule() {
+        let group = document.getElementById('groupSelect').value.trim();
+        let res = await fetch(`/api/custom_schedule?group=${encodeURIComponent(group)}`);
+        customScheduleItems = await res.json();
+        if (!Array.isArray(customScheduleItems)) customScheduleItems = [];
+        renderCalendar();
+    }
+
+    // --- ОТРИСОВКА КАЛЕНДАРЯ И ЗАДАЧ ---
+    async function renderCalendar() {
+        let openDays = new Set();
+        document.querySelectorAll('div[id^="schedule-details-"]').forEach(el => {
+            if (el.style.display !== "none") {
+                openDays.add(el.id.replace('schedule-details-', ''));
+            }
+        });
+
+        updateWeekDropdown();
+        
+        const cal = document.getElementById("calendar");
+        if(!cal) return;
+        cal.innerHTML = "";
+        
+        let startStr = getLocalDateStr(currentBaseDate);
+        let endD = new Date(currentBaseDate);
+        endD.setDate(endD.getDate() + 6);
+        let endStr = getLocalDateStr(endD);
+        let realTodayStr = getLocalDateStr(new Date());
+
+        for(let i = 0; i < 7; i++) {
+            let d = new Date(currentBaseDate);
+            d.setDate(d.getDate() + i);
+            let dateStr = getLocalDateStr(d);
+            let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
+            
+            let isTodayClass = (dateStr === realTodayStr) ? "day-today" : "";
+            let daySchedule = cachedSchedule.filter(item => item.date === dateStr);
+            let customItems = getCustomItemsForDate(dateStr);
+            daySchedule = daySchedule.concat(customItems);
+            
+            daySchedule.sort((a, b) => {
+                let aTime = a.time_range ? a.time_range.split(' - ')[0] : "99:99";
+                let bTime = b.time_range ? b.time_range.split(' - ')[0] : "99:99";
+                return aTime.localeCompare(bTime);
+            });
+            
+            let scheduleHtml = "";
+            if(daySchedule.length > 0) {
+                let startTime = fixTime(daySchedule[0].time_range.split(' - ')[0]);
+                let endTime = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
+                
+                let isExpanded = openDays.has(dateStr);
+                let detailsStyle = isExpanded ? 'display: block;' : 'display: none;';
+                let arrowIcon = isExpanded ? '▲' : '▼';
+                
+                scheduleHtml += `
+                    <div class="schedule-summary shadow-sm" onclick="toggleSchedule('${dateStr}')">
+                        🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">${arrowIcon}</span>
+                    </div>
+                    <div id="schedule-details-${dateStr}" style="${detailsStyle}">
+                `;
+                
+                daySchedule.forEach(item => {
+                    let origLesson = item.lesson;
+                    let subjectKey = item.is_custom ? origLesson : `${item.lesson} (${item.type_name})`;
+                    let safeSubjectKey = subjectKey.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                    
+                    let displayLesson = origLesson;
+                    let lessonLink = "";
+                    let displayTeacher = item.teacher || "";
+                    let displayLocation = item.location || "";
+                    
+                    if (!item.is_custom && cachedSubjectSettings[subjectKey]) {
+                        if (cachedSubjectSettings[subjectKey].custom_name) displayLesson = cachedSubjectSettings[subjectKey].custom_name;
+                        if (cachedSubjectSettings[subjectKey].link) lessonLink = cachedSubjectSettings[subjectKey].link;
+                        if (cachedSubjectSettings[subjectKey].teacher) displayTeacher = cachedSubjectSettings[subjectKey].teacher;
+                        if (cachedSubjectSettings[subjectKey].location) displayLocation = cachedSubjectSettings[subjectKey].location;
+                    }
+                    
+                    let lessonHtml = lessonLink 
+                        ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: #4f46e5;" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
+                        : `<span title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</span>`;
+                    
+                    if (!item.is_custom) {
+                        lessonHtml += ` <span style="cursor:pointer; font-size: 0.9em; opacity: 0.4;" onclick="openSubjectSettings('${safeSubjectKey}')" title="Настроить предмет">⚙️</span>`;
+                    }
+                    
+                    let typeBadge = '';
+                    if (item.is_custom && item.is_event) {
+                        typeBadge = `<span class="badge bg-success ms-2" style="font-size: 0.7em;">Событие</span>`;
+                    } else if (item.type_name) {
+                        typeBadge = `<span class="badge bg-secondary ms-2" style="font-size: 0.7em;">${item.type_name}</span>`;
+                    }
+
+                    let editCustomHtml = item.is_custom 
+                        ? `<span style="cursor:pointer; font-size: 0.9em; margin-left: 8px;" onclick="openCustomScheduleModal('${item.date}', ${item.custom_id})" title="Редактировать">✏️</span>` 
+                        : '';
+
+                    let teacherInfo = (displayTeacher && showTeacher) ? `<span class="text-muted" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(displayTeacher)}</span>` : '';
+                    let locInfo = (displayLocation && showLocation) ? `<span class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(displayLocation)}</span>` : '';
+
+                    let customStyle = item.is_custom 
+                        ? (item.is_event ? 'border-left: 3px solid #10b981;' : 'border-left: 3px solid #8b5cf6;') 
+                        : 'border-left: 3px solid #6366f1;';
+
+                    scheduleHtml += `
+                        <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2; ${customStyle}">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div><strong class="text-primary">${item.time_range}</strong>${typeBadge}${editCustomHtml}</div>
+                                <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', 'Сдать: ${safeSubjectKey}')">+ Заметка</span>
+                            </div>
+                            <div class="mb-1">${lessonHtml}</div>
+                            <div class="d-flex gap-2 flex-wrap">${teacherInfo} ${locInfo}</div>
+                        </div>
+                    `;
+                });
+                scheduleHtml += `</div>`;
+            }
+
+            cal.innerHTML += `
+                <div class="day-col ${isTodayClass}" id="day-col-${dateStr}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
+                    <div class="day-header">
+                        <button class="day-nav-arrow" onclick="navigateExpandedDay('${dateStr}', -1)">&#10094;</button>
+                        <span>${displayDate}</span>
+                        <button class="day-nav-arrow" onclick="navigateExpandedDay('${dateStr}', 1)">&#10095;</button>
+                    </div>
+                    
+                    <div class="day-schedule-wrap">
+                        <div class="mb-2">${scheduleHtml}</div>
+                    </div>
+                    
+                    <div class="day-tasks-wrap d-flex flex-column" style="flex-grow: 1;">
+                        <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
+                        
+                        <div id="expand-btn-wrap-${dateStr}" style="display: none; text-align: center;">
+                            <span class="add-task-btn mt-1" style="color: #f59e0b;" onclick="toggleExpandDay('${dateStr}')">Развернуть</span>
+                        </div>
+                        
+                        <div class="text-center mt-2 d-flex justify-content-center gap-2">
+                            <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm" 
+                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
+                                    onclick="toggleTaskInput('${dateStr}')" title="Добавить заметку">+</button>
+                            <button class="btn btn-outline-success btn-sm rounded-circle fw-bold shadow-sm" 
+                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
+                                    onclick="openCustomScheduleModal('${dateStr}')" title="Добавить в расписание">+</button>
+                        </div>
+                        
+                        <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
+                            <textarea id="task-input-${dateStr}" class="form-control form-control-sm" 
+                                   placeholder="Текст заметки" rows="2" style="resize: none;"
+                                   onkeydown="handleNewTask(event, '${dateStr}')" 
+                                   onblur="handleTaskBlur('${dateStr}')"></textarea>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        try {
+            let taskRes = await fetch(`/api/tasks?start=${startStr}&end=${endStr}`);
+            let tasks = await taskRes.json();
+            tasks.forEach(t => renderTask(t));
+        } catch(e) { console.error("Tasks load error"); }
+
+        renderFriendsCalendar();
+
+        if (expandedDayDateStr) {
+            let grid = document.querySelector('.calendar-grid');
+            let col = document.getElementById(`day-col-${expandedDayDateStr}`);
+            if (col) {
+                col.classList.add('fullscreen-day');
+                grid.classList.add('has-fullscreen');
+                
+                let btn = document.querySelector(`#expand-btn-wrap-${expandedDayDateStr} span`);
+                if (btn) btn.textContent = "Свернуть";
+                
+                let details = document.getElementById(`schedule-details-${expandedDayDateStr}`);
+                let arrow   = document.getElementById(`arrow-${expandedDayDateStr}`);
+                if (details) details.style.display = "block";
+                if (arrow) arrow.textContent = "▲";
+                
+                rebalanceDayText(expandedDayDateStr);
+            } else {
+                expandedDayDateStr = null;
+            }
+        }
+    }
+
+    function toggleSchedule(dateStr) {
+        let details = document.getElementById(`schedule-details-${dateStr}`);
+        let arrow = document.getElementById(`arrow-${dateStr}`);
+        if(details.style.display === "none") {
+            details.style.display = "block"; arrow.textContent = "▲";
+        } else {
+            details.style.display = "none"; arrow.textContent = "▼";
+        }
+    }
+
+    function toggleTaskInput(dateStr) {
+        let wrap = document.getElementById(`task-input-wrap-${dateStr}`);
+        let input = document.getElementById(`task-input-${dateStr}`);
+        if(wrap.style.display === "none") {
+            wrap.style.display = "block"; input.focus();
+        } else { wrap.style.display = "none"; }
+    }
+
+    function toggleExpandDay(dateStr) {
+        let grid = document.querySelector('.calendar-grid');
+        let col  = document.getElementById(`day-col-${dateStr}`);
+        let btn  = document.querySelector(`#expand-btn-wrap-${dateStr} span`);
+
+        let headerEl = document.querySelector('.controls-header');
+        let headerOffset = headerEl ? headerEl.offsetHeight + 25 : 90;
+
+        function scrollToCol(alignTop) {
+            let rect = col.getBoundingClientRect();
+            let targetY = window.pageYOffset + rect.top - (alignTop ? headerOffset : 0);
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        }
+
+        if (col.classList.contains('fullscreen-day')) {
+            col.classList.remove('fullscreen-day');
+            grid.classList.remove('has-fullscreen');
+            btn.textContent = "Развернуть";
+
+            expandedDayDateStr = null;
+
+            let details = document.getElementById(`schedule-details-${dateStr}`);
+            let arrow   = document.getElementById(`arrow-${dateStr}`);
+            if (details) details.style.display = "none";
+            if (arrow)   arrow.textContent = "▼";
+
+            rebalanceDayText(dateStr);
+        } else {
+            col.classList.add('fullscreen-day');
+            grid.classList.add('has-fullscreen');
+            btn.textContent = "Свернуть";
+
+            expandedDayDateStr = dateStr;
+
+            let details = document.getElementById(`schedule-details-${dateStr}`);
+            let arrow   = document.getElementById(`arrow-${dateStr}`);
+            if (details) {
+                details.style.display = "block";
+                details.style.animation = 'none';
+                void details.offsetWidth;
+                details.style.animation = '';
+            }
+            if (arrow) arrow.textContent = "▲";
+
+            setTimeout(() => scrollToCol(true), 60);
+        }
+    }
+
+    function navigateExpandedDay(dateStr, offset) {
+        let d = new Date(dateStr);
+        d.setDate(d.getDate() + offset);
+        let newDateStr = getLocalDateStr(d);
+        
+        expandedDayDateStr = newDateStr;
+        
+        let startStr = getLocalDateStr(currentBaseDate);
+        let endD = new Date(currentBaseDate);
+        endD.setDate(endD.getDate() + 6);
+        let endStr = getLocalDateStr(endD);
+        
+        if (newDateStr >= startStr && newDateStr <= endStr) {
+            let currentCol = document.getElementById(`day-col-${dateStr}`);
+            if (currentCol) {
+                currentCol.classList.remove('fullscreen-day');
+                let btn = document.querySelector(`#expand-btn-wrap-${dateStr} span`);
+                if(btn) btn.textContent = "Развернуть";
+                let details = document.getElementById(`schedule-details-${dateStr}`);
+                if (details) details.style.display = "none";
+                rebalanceDayText(dateStr);
+            }
+            
+            let newCol = document.getElementById(`day-col-${newDateStr}`);
+            if (newCol) {
+                newCol.classList.add('fullscreen-day');
+                let btn = document.querySelector(`#expand-btn-wrap-${newDateStr} span`);
+                if(btn) btn.textContent = "Свернуть";
+                let details = document.getElementById(`schedule-details-${newDateStr}`);
+                if (details) details.style.display = "block";
+                rebalanceDayText(newDateStr);
+            }
+        } else {
+            currentBaseDate = new Date(d);
+            currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+            renderCalendar();
+        }
+    }
+
+    function rebalanceDayText(dateStr) {
+        let container = document.getElementById(`tasks-${dateStr}`);
+        if (!container) return;
+
+        let cards = Array.from(container.querySelectorAll('.task-card'));
+        let wrap  = document.getElementById(`expand-btn-wrap-${dateStr}`);
+        if (!wrap) return;
+
+        let col = document.getElementById(`day-col-${dateStr}`);
+        let isFullscreen = !!(col && col.classList.contains('fullscreen-day'));
+        let btnSpan = wrap.querySelector('span');
+
+        if (btnSpan) btnSpan.textContent = isFullscreen ? 'Свернуть' : 'Развернуть';
+
+        if (cards.length === 0) {
+            wrap.style.display = isFullscreen ? 'block' : 'none';
+            return;
+        }
+
+        let lengths = cards.map(card => {
+            let fullEl = card.querySelector('.task-text-full');
+            return fullEl ? fullEl.textContent.length : 0;
+        });
+        let totalLen = lengths.reduce((s, n) => s + n, 0);
+
+        const SHOW_BTN_THRESHOLD = 50;
+        let showButton = isFullscreen || totalLen > SHOW_BTN_THRESHOLD;
+        wrap.style.display = showButton ? 'block' : 'none';
+
+        const SINGLE_NOTE_LIMIT = 50;
+        const MULTI_TOTAL_LIMIT = 80;
+        let shouldTrim = cards.length === 1
+            ? lengths[0] > SINGLE_NOTE_LIMIT
+            : totalLen > MULTI_TOTAL_LIMIT;
+
+        if (!shouldTrim) {
+            cards.forEach(card => {
+                let shortEl = card.querySelector('.task-text-short');
+                let fullEl  = card.querySelector('.task-text-full');
+                if (shortEl && fullEl) {
+                    shortEl.textContent = fullEl.textContent;
+                    shortEl.style.opacity = '';
+                }
+            });
+            return;
+        }
+
+        if (cards.length === 1) {
+            let card    = cards[0];
+            let shortEl = card.querySelector('.task-text-short');
+            let fullEl  = card.querySelector('.task-text-full');
+            if (shortEl && fullEl) {
+                let full = fullEl.textContent;
+                shortEl.textContent = full.slice(0, SINGLE_NOTE_LIMIT).trimEnd() + '…';
+                shortEl.style.opacity = '';
+            }
+            return;
+        }
+
+        const TOTAL_BUDGET = MULTI_TOTAL_LIMIT;
+        let share     = Math.floor(TOTAL_BUDGET / cards.length);
+        let remainder = TOTAL_BUDGET - share * cards.length;
+
+        cards.forEach((card, idx) => {
+            let shortEl = card.querySelector('.task-text-short');
+            let fullEl  = card.querySelector('.task-text-full');
+            if (!shortEl || !fullEl) return;
+
+            let full  = fullEl.textContent;
+            let limit = share + (idx < remainder ? 1 : 0);
+
+            if (full.length <= limit) {
+                shortEl.textContent = full;
+                shortEl.style.opacity = '';
+            } else {
+                shortEl.textContent = full.slice(0, limit).trimEnd() + '…';
+                shortEl.style.opacity = '';
+            }
+        });
+    }
+
+    function handleNewTask(e, dateStr) { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }
+    
+    function handleTaskBlur(dateStr) {
+        setTimeout(() => {
+            let input = document.getElementById(`task-input-${dateStr}`);
+            let wrap = document.getElementById(`task-input-wrap-${dateStr}`);
+            if(input && input.value.trim() !== '') {
+                createTask(dateStr, input.value.trim(), 'green');
+                input.value = '';
+            }
+            if(wrap) wrap.style.display = "none";
+        }, 150);
+    }
+
+    function createTaskFromSchedule(date, text) {
+        let decodedText = text.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+        createTask(date, decodedText, 'orange');
+    }
+
+    async function createTask(date, text, status) {
+        let res = await fetch('/api/tasks', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date, text, status}) });
+        let data = await res.json();
+        renderTask({id: data.id, date, text, status});
+    }
+
+    function renderTask(task) {
+        const container = document.getElementById(`tasks-${task.date}`);
+        if(!container) return;
+        
+        let existing = document.getElementById(`task-${task.id}`);
+        if(existing) existing.remove();
+        
+        let div = document.createElement('div');
+        div.className = `task-card status-${task.status}`;
+        div.id = `task-${task.id}`;
+        div.draggable = true;
+        
+        let spanText = document.createElement('div');
+        spanText.className = 'task-text';
+        
+        let safeText = task.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        spanText.innerHTML = `<span class="task-text-short">${safeText}</span><span class="task-text-full">${safeText}</span>`;
+        spanText.onclick = () => { if(task.status !== 'completed') toggleColor(task.id, task.status); };
+        
+        let actions = document.createElement('div');
+        actions.className = 'task-actions';
+
+        let btnEdit = document.createElement('a');
+        btnEdit.className = 'task-btn task-edit';
+        btnEdit.innerHTML = '✏️';
+        btnEdit.onclick = (e) => {
+            e.stopPropagation();
+            let newText = prompt("Изменить заметку:", task.text);
+            if(newText && newText.trim() !== '') {
+                task.text = newText.trim();
+                updateTaskRequest(task);
+            }
+        };
+
+        let btnDel = document.createElement('a');
+        btnDel.className = 'task-btn';
+        if (task.status === 'completed') { div.classList.add('task-completed'); btnDel.innerHTML = '🗑️'; } 
+        else { btnDel.innerHTML = '×'; btnDel.style.fontSize = '1.3em'; }
+        btnDel.onclick = () => handleTaskDeleteClick(task);
+
+        if (task.status !== 'completed') actions.appendChild(btnEdit);
+        actions.appendChild(btnDel);
+
+        div.appendChild(spanText);
+        div.appendChild(actions);
+        div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
+        container.appendChild(div);
+        
+        rebalanceDayText(task.date);
+    }
+
+    function updateTaskRequest(task) {
+        renderTask(task);
+        fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: task.date, text: task.text, status: task.status}) });
+    }
+
+    function handleTaskDeleteClick(task) {
+        if (task.status !== 'completed') {
+            task.status = 'completed';
+            updateTaskRequest(task);
+        } else {
+            document.getElementById(`task-${task.id}`).remove();
+            fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+            rebalanceDayText(task.date);
+        }
+    }
+
+    function toggleColor(id, currentStatus) {
+        let taskElement = document.getElementById(`task-${id}`);
+        let newStatus = currentStatus === 'green' ? 'orange' : (currentStatus === 'orange' ? 'red' : 'green');
+        let fullEl = taskElement.querySelector('.task-text-full');
+        let text = fullEl ? fullEl.textContent : '';
+        let dateId = taskElement.parentElement.id.replace('tasks-', '');
+        
+        let task = {id, date: dateId, text, status: newStatus};
+        updateTaskRequest(task);
+    }
+
+    function allowDrop(e) { e.preventDefault(); }
+    function drop(e, newDate) {
+        e.preventDefault();
+        let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
+        if(taskData.date === newDate) return;
+        
+        let oldDate = taskData.date;
+        taskData.date = newDate;
+        updateTaskRequest(taskData); 
+        
+        setTimeout(() => rebalanceDayText(oldDate), 50); 
+    }
+
+    async function fetchSubjectSettings() {
+        try {
+            let res = await fetch('/api/subjects');
+            cachedSubjectSettings = await res.json();
+        } catch (e) {
+            console.error("Ошибка загрузки настроек предметов", e);
+        }
+    }
+
+    function openSubjectSettings(origLessonSafe) {
+        let decodedLesson = origLessonSafe.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+        document.getElementById('origSubjectName').value = decodedLesson;
+        document.getElementById('subjectOrigNameDisplay').textContent = decodedLesson;
+        
+        if (cachedSubjectSettings[decodedLesson]) {
+            document.getElementById('subjectCustomName').value = cachedSubjectSettings[decodedLesson].custom_name || "";
+            document.getElementById('subjectLink').value = cachedSubjectSettings[decodedLesson].link || "";
+            document.getElementById('subjectTeacher').value = cachedSubjectSettings[decodedLesson].teacher || "";
+            document.getElementById('subjectLocation').value = cachedSubjectSettings[decodedLesson].location || "";
+        } else {
+            document.getElementById('subjectCustomName').value = "";
+            document.getElementById('subjectLink').value = "";
+            document.getElementById('subjectTeacher').value = "";
+            document.getElementById('subjectLocation').value = "";
+        }
+        
+        new bootstrap.Modal(document.getElementById('subjectSettingsModal')).show();
+    }
+
+    async function saveSubjectSettings() {
+        let orig = document.getElementById('origSubjectName').value;
+        let custom = document.getElementById('subjectCustomName').value.trim();
+        let link = document.getElementById('subjectLink').value.trim();
+        let teacher = document.getElementById('subjectTeacher').value.trim();
+        let location = document.getElementById('subjectLocation').value.trim();
+        
+        await fetch('/api/subjects', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subject: orig, custom_name: custom, link: link, teacher: teacher, location: location})
+        });
+        
+        let modalEl = document.getElementById('subjectSettingsModal');
+        let modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+        
+        await fetchSubjectSettings();
+        renderCalendar();
+    }
+
+    function loadFriendsOrder() {
+        try {
+            let raw = localStorage.getItem('friendsOrder');
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+    }
+
+    function saveFriendsOrder() {
+        try {
+            let order = friendsList.map(f => f.id);
+            localStorage.setItem('friendsOrder', JSON.stringify(order));
+        } catch(e) {}
+    }
+
+    function applyFriendsOrder() {
+        let order = loadFriendsOrder();
+        if (!Array.isArray(order)) return;
+        friendsList.sort((a, b) => {
+            let ai = order.indexOf(a.id);
+            let bi = order.indexOf(b.id);
+            if (ai === -1) ai = Number.MAX_SAFE_INTEGER;
+            if (bi === -1) bi = Number.MAX_SAFE_INTEGER;
+            return ai - bi;
+        });
+    }
+
+    async function fetchFriends() {
+        document.getElementById('friendsLoader').style.display = 'block';
+        try {
+            let res = await fetch('/api/friends');
+            friendsList = await res.json();
+            if (!Array.isArray(friendsList)) friendsList = [];
+        } catch (e) { friendsList = []; }
+
+        applyFriendsOrder();
+        let ids = new Set(friendsList.map(f => f.id));
+        visibleFriends.forEach(id => { if (!ids.has(id)) visibleFriends.delete(id); });
+        saveVisibleFriends();
+        
+        renderFriendDropdown();
+        await fetchAllFriendsSchedules();
+        renderFriendsCalendar();
+        document.getElementById('friendsLoader').style.display = 'none';
+    }
+
+    function renderFriendDropdown() {
+        let dropdownMenu = document.getElementById('friendTogglesDropdown');
+        dropdownMenu.innerHTML = '';
+        
+        dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider m-0"></li>`;
+        
+        let groupsMap = { "": [] }; 
+        customCategories.forEach(c => { if (c) groupsMap[c] = []; });
+
+        let categoriesChanged = false;
+        friendsList.forEach(f => {
+            let cat = f.category || "";
+            if (!groupsMap[cat]) {
+                groupsMap[cat] = [];
+                if (cat && !customCategories.includes(cat)) {
+                    customCategories.push(cat);
+                    categoriesChanged = true;
+                }
+            }
+            groupsMap[cat].push(f);
+        });
+        if (categoriesChanged) {
+            localStorage.setItem('customCategories', JSON.stringify(customCategories));
+        }
+
+        let hasAnyGroup = false;
+
+        for (let cat in groupsMap) {
+            if (cat === "" && groupsMap[cat].length === 0) continue;
+            hasAnyGroup = true;
+
+            let isUnassigned = cat === "";
+            let catName = isUnassigned ? "Без папки" : cat;
+            let catIcon = isUnassigned ? "👤" : "📁";
+            
+            let allVisible = groupsMap[cat].length > 0 && groupsMap[cat].every(f => visibleFriends.has(f.id));
+            let catChecked = allVisible ? 'checked' : '';
+            
+            let editBtnHtml = !isUnassigned ? `<button class="btn btn-sm btn-link text-secondary p-0 ms-2 text-decoration-none" onclick="editCustomCategory('${escapeAttr(cat)}', event)" title="Переименовать папку">✏️</button>` : '';
+            
+            dropdownMenu.innerHTML += `
+                <li ondragover="allowDrop(event)" ondrop="handleCategoryDrop(event, '${escapeAttr(cat)}')">
+                    <div class="dropdown-item bg-light d-flex justify-content-between align-items-center border-bottom pb-1 pt-1" onclick="toggleFriendGroup('${escapeAttr(cat)}'); event.stopPropagation();">
+                        <div class="form-check m-0 flex-grow-1 d-flex align-items-center" style="cursor: pointer;">
+                            <input class="form-check-input me-2" type="checkbox" ${catChecked} style="pointer-events: none;">
+                            <label class="form-check-label fw-bold text-primary flex-grow-1 d-flex justify-content-between align-items-center" style="cursor: pointer; font-size: 0.85em;">
+                                <span>${catIcon} ${escapeHtml(catName)}</span>
+                                ${editBtnHtml}
+                            </label>
+                        </div>
+                    </div>
+                </li>
+            `;
+            
+            groupsMap[cat].forEach(f => {
+                let isChecked = visibleFriends.has(f.id) ? 'checked' : '';
+                dropdownMenu.innerHTML += `
+                    <li draggable="true" ondragstart="handleDropdownDragStart(event, ${f.id})">
+                        <div class="dropdown-item d-flex justify-content-between align-items-center py-1" onclick="toggleFriendVisibility(${f.id}); event.stopPropagation();" style="cursor: grab;">
+                            <div class="form-check m-0 flex-grow-1 ms-3" style="cursor: pointer;">
+                                <input class="form-check-input" type="checkbox" ${isChecked} style="pointer-events: none;">
+                                <label class="form-check-label fw-bold" style="cursor: pointer; font-size: 0.9em;">
+                                    ⋮ ${escapeHtml(f.name)} <span class="text-muted small fw-normal">(${escapeHtml(f.group)})</span>
+                                </label>
+                            </div>
+                        </div>
+                    </li>
+                `;
+            });
+        }
+
+        if (!hasAnyGroup) {
+            dropdownMenu.innerHTML += '<li><span class="dropdown-item text-muted small text-center d-block py-2">Папок и друзей пока нет</span></li>';
+        }
+
+        dropdownMenu.innerHTML += `
+            <li><hr class="dropdown-divider m-0 mt-2"></li>
+            <li class="p-2 pb-1">
+                <div class="input-group input-group-sm">
+                    <input type="text" id="newCategoryInput" class="form-control" placeholder="Создать папку..." onclick="event.stopPropagation();" onkeypress="if(event.key === 'Enter') createNewCategory(event);">
+                    <button class="btn btn-outline-primary fw-bold" type="button" onclick="createNewCategory(event)">+</button>
+                </div>
+            </li>
+        `;
+    }
+
+    async function editCustomCategory(oldName, e) {
+        e.stopPropagation();
+        let newName = prompt("Введите новое название для папки:", oldName);
+        if (!newName || newName.trim() === '' || newName === oldName) return;
+        newName = newName.trim();
+        
+        let idx = customCategories.indexOf(oldName);
+        if (idx !== -1) {
+            customCategories[idx] = newName;
+            localStorage.setItem('customCategories', JSON.stringify(customCategories));
+        } else {
+            customCategories.push(newName);
+        }
+
+        let friendsToUpdate = friendsList.filter(f => (f.category || '') === oldName);
+        for (let f of friendsToUpdate) {
+            f.category = newName;
+            await fetch(`/api/friends/${f.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: f.name,
+                    group: f.group,
+                    subgroup: f.subgroup,
+                    category: newName
+                })
+            });
+        }
+        renderFriendDropdown();
+        renderFriendsCalendar();
+    }
+
+    function toggleFriendGroup(cat) {
+        let groupFriends = friendsList.filter(f => (f.category || '') === cat);
+        let allVisible = groupFriends.length > 0 && groupFriends.every(f => visibleFriends.has(f.id));
+        
+        groupFriends.forEach(f => {
+            if (allVisible) {
+                visibleFriends.delete(f.id);
+            } else {
+                visibleFriends.add(f.id);
+            }
+        });
+        saveVisibleFriends();
+        renderFriendDropdown(); 
+        renderFriendsCalendar();
+    }
+
+    function handleDropdownDragStart(e, friendId) {
+        draggingDropdownFriendId = friendId;
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => { document.getElementById('friendTogglesDropdown').classList.add('show'); }, 10);
+    }
+
+    async function handleCategoryDrop(e, newCategory) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!draggingDropdownFriendId) return;
+        
+        let friend = friendsList.find(f => f.id === draggingDropdownFriendId);
+        if (friend && (friend.category || "") !== newCategory) {
+            friend.category = newCategory;
+            
+            fetch(`/api/friends/${friend.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: friend.name,
+                    group: friend.group,
+                    subgroup: friend.subgroup,
+                    category: newCategory
+                })
+            });
+            renderFriendDropdown();
+        }
+        draggingDropdownFriendId = null;
+    }
+
+    function createNewCategory(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        let input = document.getElementById('newCategoryInput');
+        let val = input.value.trim();
+        if (val && !customCategories.includes(val)) {
+            customCategories.push(val);
+            localStorage.setItem('customCategories', JSON.stringify(customCategories));
+            renderFriendDropdown();
+        }
+    }
+
+    function toggleFriendVisibility(id) {
+        visibleFriends.has(id) ? visibleFriends.delete(id) : visibleFriends.add(id);
+        saveVisibleFriends();
+        renderFriendDropdown();
+        renderFriendsCalendar();
+    }
+    
+    function hideAllFriends(e) {
+        if(e) e.preventDefault();
+        visibleFriends.clear();
+        saveVisibleFriends();
+        renderFriendDropdown();
+        renderFriendsCalendar();
+    }
+
+    async function fetchAllFriendsSchedules() {
+        let promises = friendsList.map(async (friend) => {
+            if (!friendsSchedules[friend.id]) {
+                try {
+                    let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
+                    let data = await res.json();
+                    friendsSchedules[friend.id] = applyTimeFix(data);
+                    
+                    if (visibleFriends.has(friend.id)) {
+                        scheduleFriendsRender();
+                    }
+                } catch (e) { 
+                    friendsSchedules[friend.id] = []; 
+                }
+            }
+        });
+        
+        await Promise.all(promises);
+        syncFriendsSchedules();
+    }
+
+    async function syncFriendsSchedules() {
+        const CONCURRENCY = 3;
+        const queue = friendsList.slice();
+
+        async function syncOne(friend) {
+            try {
+                let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
+                let data = await res.json();
+                let newData = applyTimeFix(data);
+
+                if (!Array.isArray(newData) || newData.length === 0) return;
+
+                if (friendsSchedules[friend.id]
+                        && friendsSchedules[friend.id].length > 0
+                        && newData.length < friendsSchedules[friend.id].length * 0.9) {
+                    return;
+                }
+
+                if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
+                    friendsSchedules[friend.id] = newData;
+                    if (visibleFriends.has(friend.id)) {
+                        scheduleFriendsRender();
+                        showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
+                    }
+                }
+            } catch (e) {
+                console.error("Ошибка синхронизации друга", e);
+            }
+        }
+
+        async function worker() {
+            while (queue.length > 0) {
+                const friend = queue.shift();
+                if (friend) await syncOne(friend);
+            }
+        }
+
+        const workers = Array.from(
+            { length: Math.min(CONCURRENCY, queue.length) },
+            () => worker()
+        );
+        await Promise.all(workers);
+    }
+
+    function populateCategorySelect(selectedCategory) {
+        let select = document.getElementById('friendCategory');
+        select.innerHTML = '<option value="">Без папки</option>';
+        customCategories.forEach(cat => {
+            select.innerHTML += `<option value="${escapeAttr(cat)}">${escapeHtml(cat)}</option>`;
+        });
+        select.innerHTML += '<option value="_new" class="fw-bold text-primary">➕ Создать новую...</option>';
+        
+        if (selectedCategory && customCategories.includes(selectedCategory)) {
+            select.value = selectedCategory;
+        } else {
+            select.value = "";
+        }
+    }
+
+    function handleCategorySelect(select) {
+        if (select.value === '_new') {
+            let newCat = prompt("Введите название новой папки:");
+            if (newCat && newCat.trim() !== '') {
+                newCat = newCat.trim();
+                if (!customCategories.includes(newCat)) {
+                    customCategories.push(newCat);
+                    localStorage.setItem('customCategories', JSON.stringify(customCategories));
+                    renderFriendDropdown();
+                }
+                populateCategorySelect(newCat);
+            } else {
+                select.value = "";
+            }
+        }
+    }
+
+    function showAddFriendModal() { 
+        editingFriendId = null;
+        document.querySelector('#addFriendModal .modal-title').textContent = 'Добавить друга';
+        document.getElementById('friendName').value = '';
+        document.getElementById('friendGroup').value = '';
+        document.getElementById('friendSubgroup').value = '0';
+        populateCategorySelect('');
+        new bootstrap.Modal(document.getElementById('addFriendModal')).show(); 
+    }
+
+    function editFriend(id, name, group, subgroup, category) {
+        editingFriendId = id;
+        document.querySelector('#addFriendModal .modal-title').textContent = 'Редактировать друга';
+        document.getElementById('friendName').value = name;
+        document.getElementById('friendGroup').value = group;
+        document.getElementById('friendSubgroup').value = subgroup;
+        populateCategorySelect(category);
+        new bootstrap.Modal(document.getElementById('addFriendModal')).show();
+    }
+
+    async function saveFriend() {
+        let nameInput = document.getElementById('friendName');
+        let groupInput = document.getElementById('friendGroup');
+        let subgroupInput = document.getElementById('friendSubgroup');
+        let categoryInput = document.getElementById('friendCategory');
+        
+        let name = nameInput.value.trim();
+        let group = groupInput.value.trim();
+        let subgroup = subgroupInput.value;
+        let category = categoryInput.value === '_new' ? '' : categoryInput.value;
+        
+        if (!name || !group) return alert("Введите имя и группу");
+
+        let myGroup    = (document.getElementById('groupSelect').value || '').trim();
+        let mySubgroup = String(document.getElementById('subgroupSelect').value || '0');
+        let sameGroup    = myGroup && group.toLowerCase() === myGroup.toLowerCase();
+        let sameSubgroup = String(subgroup) === mySubgroup;
+
+        if (sameGroup && sameSubgroup) {
+            return alert("Друг в той же группе, что и вы");
+        }
+        
+        await ensureGroupsLoaded(); 
+        if (allGroups.size > 0 && !hasGroup(group)) {
+            let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу?`);
+            if (!add) return;
+            try {
+                await fetch('/api/groups/custom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: group })
+                });
+                addGroup(group);
+            } catch(e) { console.error(e); }
+        }
+
+        if (editingFriendId) {
+            await fetch(`/api/friends/${editingFriendId}`, { 
+                method: 'PUT', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({name, group, subgroup, category}) 
+            });
+        } else {
+            let res = await fetch('/api/friends', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({name, group, subgroup, category}) 
+            });
+            let data = await res.json();
+            if (data.id) {
+                visibleFriends.add(data.id);
+                saveVisibleFriends();
+            }
+        }
+
+        nameInput.value = '';
+        groupInput.value = '';
+        subgroupInput.value = '0';
+        populateCategorySelect('');
+
+        bootstrap.Modal.getInstance(document.getElementById('addFriendModal')).hide();
+        await fetchFriends();
+    }
+
+    async function deleteFriend(id) {
+        if (!confirm("Вы уверены, что хотите удалить этого друга?")) return;
+        
+        try {
+            await fetch(`/api/friends/${id}`, { method: 'DELETE' });
+            visibleFriends.delete(id);
+            saveVisibleFriends();
+            await fetchFriends();
+        } catch (e) { console.error("Ошибка при удалении друга", e); }
+    }
+
+    function renderFriendsCalendar() {
+        let container = document.getElementById("friendsCalendarsContainer");
+        if (!container) return;
+        container.innerHTML = "";
+        
+        if (!friendsList || friendsList.length === 0) return;
+        
+        friendsList.forEach(friend => {
+            if (!visibleFriends.has(friend.id)) return;
+            
+            let friendSched = friendsSchedules[friend.id] || [];
+            let wrapper = document.createElement('div');
+            wrapper.className = "friend-wrapper bg-white rounded shadow-sm px-2 pb-2 pt-1";
+            wrapper.dataset.friendId = friend.id;
+            wrapper.draggable = true;
+            
+            wrapper.addEventListener('dragstart', (e) => {
+                draggingFriendId = friend.id;
+                wrapper.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', 'friend:' + friend.id); } catch(err) {}
+            });
+            
+            wrapper.addEventListener('dragend', () => {
+                wrapper.classList.remove('dragging');
+                document.querySelectorAll('.friend-wrapper').forEach(w => w.classList.remove('drag-over'));
+                draggingFriendId = null;
+            });
+            
+            wrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (draggingFriendId !== null && draggingFriendId !== friend.id) {
+                    wrapper.classList.add('drag-over');
+                }
+            });
+            
+            wrapper.addEventListener('dragleave', () => {
+                wrapper.classList.remove('drag-over');
+            });
+            
+            wrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                wrapper.classList.remove('drag-over');
+                if (draggingFriendId === null || draggingFriendId === friend.id) return;
+                
+                let fromIdx = friendsList.findIndex(f => f.id === draggingFriendId);
+                let toIdx = friendsList.findIndex(f => f.id === friend.id);
+                if (fromIdx === -1 || toIdx === -1) return;
+                
+                let [moved] = friendsList.splice(fromIdx, 1);
+                friendsList.splice(toIdx, 0, moved);
+                saveFriendsOrder();
+                renderFriendsCalendar();
+            });
+            
+            let header = document.createElement('div');
+            header.className = "fw-bold text-primary mb-2 ps-1 pt-1 friend-header-row d-flex align-items-center";
+            header.innerHTML = `
+                <span class="friend-drag-handle" title="Перетащите, чтобы изменить порядок">⋮⋮</span> 
+                <span class="flex-grow-1">👤 ${escapeHtml(friend.name)} <span class="text-muted small fw-normal ms-1">(${escapeHtml(friend.group)})</span></span>
+                <button class="btn btn-sm btn-link text-primary p-0 me-2 text-decoration-none" onclick="editFriend(${friend.id}, '${escapeAttr(friend.name)}', '${escapeAttr(friend.group)}', '${friend.subgroup}', '${escapeAttr(friend.category || '')}')" title="Редактировать">✏️</button>
+                <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="deleteFriend(${friend.id})" title="Удалить">🗑️</button>
+            `;
+            wrapper.appendChild(header);
+            
+            let grid = document.createElement('div');
+            grid.className = "calendar-grid w-100";
+            
+            for(let i = 0; i < 7; i++) {
+                let d = new Date(currentBaseDate); d.setDate(d.getDate() + i);
+                let dateStr = getLocalDateStr(d);
+                let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+                
+                let daySchedule = friendSched.filter(item => item.date === dateStr);
+                daySchedule.sort((a, b) => a.n - b.n);
+                
+                let myDaySchedule = cachedSchedule.filter(item => item.date === dateStr);
+                myDaySchedule.sort((a, b) => a.n - b.n);
+                
+                let html = `<div class="friend-col"><div class="friend-day-header">${displayDate}</div>`;
+                
+                if (daySchedule.length > 0) {
+                    let fStart = fixTime(daySchedule[0].time_range.split(' - ')[0]);
+                    let fEnd = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
+                    let fCampStart = getCampus(daySchedule[0]);
+                    let fCampEnd = getCampus(daySchedule[daySchedule.length - 1]);
+                    
+                    html += `<div class="fw-bold text-primary mb-2 text-center border-bottom pb-1" style="font-size: 0.8em;">🕒 ${fStart} - ${fEnd}</div>`;
+                    
+                    let myStart = myDaySchedule.length > 0 ? fixTime(myDaySchedule[0].time_range.split(' - ')[0]) : null;
+                    let myEnd = myDaySchedule.length > 0 ? fixTime(myDaySchedule[myDaySchedule.length - 1].time_range.split(' - ')[1]) : null;
+                    let myCampStart = myDaySchedule.length > 0 ? getCampus(myDaySchedule[0]) : 'unknown';
+                    let myCampEnd = myDaySchedule.length > 0 ? getCampus(myDaySchedule[myDaySchedule.length - 1]) : 'unknown';
+
+                    const campusNames = { 'galosha': 'Галоша', 'gogol': 'Гоголя', 'univer': 'Университетская' };
+
+                    daySchedule.forEach(fItem => {
+                        let match = myDaySchedule.find(myItem => 
+                            myItem.time_range === fItem.time_range && 
+                            myItem.lesson === fItem.lesson &&
+                            (myItem.location || '').trim().toLowerCase() === (fItem.location || '').trim().toLowerCase()
+                        );
+                        if (match) {
+                            html += `<div class="shared-class fw-bold bg-success text-white">🤝 Общая пара в ${fixTime(fItem.time_range.split(' - ')[0])}</div>`;
+                        }
+                    });
+
+                    if (myStart && fStart === myStart) {
+                        if (fCampStart !== 'unknown' && myCampStart !== 'unknown') {
+                            if (fCampStart !== myCampStart) {
+                                html += `<div class="shared-class text-white fw-bold" style="background: #f97316;">🚨 Начинаем одновременно в ${fStart}, но в разных корпусах</div>`;
+                            } else {
+                                let campRu = campusNames[fCampStart] || fCampStart;
+                                html += `<div class="shared-class text-success fw-bold border border-success">🏃 Начинаем одновременно в корпусе «${campRu}» в ${fStart}</div>`;
+                            }
+                        } else {
+                            html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Начинаем в одно время: ${fStart}</div>`;
+                        }
+                    }
+                    
+                    if (myEnd && fEnd === myEnd) {
+                        if (fCampEnd !== 'unknown' && myCampEnd !== 'unknown') {
+                            if (fCampEnd !== myCampEnd) {
+                                html += `<div class="shared-class text-white fw-bold" style="background: #f97316;">🚨 Заканчиваем одновременно в ${fEnd}, но в разных корпусах</div>`;
+                            } else {
+                                let campRu = campusNames[fCampEnd] || fCampEnd;
+                                html += `<div class="shared-class fw-bold border border-success">🏡 Заканчиваем одновременно в корпусе «${campRu}» в ${fEnd}</div>`;
+                            }
+                        } else {
+                            html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Заканчиваем в одно время: ${fEnd}</div>`;
+                        }
+                    }
+
+                    if (showFriends) {
+                        html += `<div class="mt-2 border-top pt-2">`;
+                        daySchedule.forEach(fItem => {
+                            let typeBadge = `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">${fItem.type_name}</span>`;
+                            html += `
+                                <div class="bg-white border rounded p-1 mb-1 shadow-sm" style="font-size: 0.75em; border-left: 3px solid #cbd5e1 !important;">
+                                    <strong class="text-primary">${fixTime(fItem.time_range)}</strong>${typeBadge}<br>
+                                    <span title="${escapeHtml(fItem.lesson)}">${escapeHtml(fItem.lesson)}</span>
+                                </div>`;
+                        });
+                        html += `</div>`;
+                    }
+                } else {
+                    html += `<div class="text-muted text-center mt-2" style="font-size: 0.8em;">Выходной</div>`;
+                }
+                html += `</div>`;
+                grid.innerHTML += html;
+            }
+            wrapper.appendChild(grid);
+            container.appendChild(wrapper);
+        });
+    }
+</script>
+</body>
+</html>
