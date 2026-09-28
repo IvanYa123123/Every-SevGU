@@ -308,6 +308,11 @@
             text-align: center;
         }
         .autocomplete-empty:hover { background: transparent; }
+
+        /* Стрелочки навигации в развернутом дне */
+        .day-col.fullscreen-day .day-header { display: flex; justify-content: space-between; align-items: center; }
+        .day-col.fullscreen-day .day-nav-arrow { display: block !important; background: none; border: none; font-size: 1.5rem; color: #cbd5e1; cursor: pointer; transition: color 0.2s; padding: 0 15px; }
+        .day-col.fullscreen-day .day-nav-arrow:hover { color: #6366f1; }
     </style>
 </head>
 <body>
@@ -531,6 +536,95 @@
   </div>
 </div>
 
+<!-- Модальное окно добавления в расписание (Событие/Пара) -->
+<div class="modal fade" id="customScheduleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold" id="customScheduleModalTitle">Добавить в расписание</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="csId">
+        <input type="hidden" id="csBaseDate">
+        <input type="hidden" id="csTargetDate"> <!-- Отслеживает на какой день кликнули -->
+        
+        <div class="mb-3 d-flex gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="csType" id="csTypeEvent" value="1" checked onchange="toggleCsFields()">
+                <label class="form-check-label small fw-bold" for="csTypeEvent">Событие</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="csType" id="csTypeClass" value="0" onchange="toggleCsFields()">
+                <label class="form-check-label small fw-bold" for="csTypeClass">Пара</label>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small">Время</label>
+            <div class="d-flex align-items-center gap-2">
+                <input type="time" id="csTimeStart" class="form-control form-control-sm" required>
+                <span>-</span>
+                <input type="time" id="csTimeEnd" class="form-control form-control-sm" required>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label small" id="csLessonLabel">Текст события</label>
+            <input type="text" id="csLesson" class="form-control form-control-sm" placeholder="Название...">
+        </div>
+
+        <div id="csClassFields" style="display: none;">
+            <div class="mb-3">
+                <label class="form-label small">Тип пары (Лекция, ПЗ, ЛЗ)</label>
+                <input type="text" id="csTypeName" class="form-control form-control-sm" placeholder="ПЗ">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small">Преподаватель</label>
+                <input type="text" id="csTeacher" class="form-control form-control-sm" placeholder="ФИО">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small">Аудитория</label>
+                <input type="text" id="csLocation" class="form-control form-control-sm" placeholder="Ауд...">
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small">Повторение</label>
+            <select id="csRecurrence" class="form-select form-select-sm">
+                <option value="none">Только на этот день</option>
+                <option value="weekly">Каждую неделю</option>
+                <option value="biweekly">Каждую чередующуюся неделю (раз в 2 недели)</option>
+            </select>
+        </div>
+      </div>
+      <div class="modal-footer py-1 border-0 justify-content-between">
+        <button type="button" class="btn btn-danger btn-sm" id="csDeleteBtn" onclick="deleteCustomSchedule()" style="display:none;">Удалить</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveCustomSchedule()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно выбора применения изменений (Только сейчас или Все) -->
+<div class="modal fade" id="recurrenceActionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title fw-bold" id="recurrenceActionTitle">Изменение события</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center">
+        <p class="small mb-3 text-muted">Как применить изменения?</p>
+        <div class="d-grid gap-2">
+            <button class="btn btn-outline-primary btn-sm fw-bold" id="btnRecurrenceSingle">Только для этой недели</button>
+            <button class="btn btn-primary btn-sm fw-bold" id="btnRecurrenceAll">Для всех недель</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Модальное окно настроек предмета -->
 <div class="modal fade" id="subjectSettingsModal" tabindex="-1">
   <div class="modal-dialog">
@@ -582,27 +676,16 @@
     let globalLabChart = null;
     let currentSubjectsList = []; 
 
-    let allGroups = new Map();
+    let validGroups = new Set(); 
+    let allGroups = []; // для автокомплита (в исходном порядке)
     let groupsLoaded = false;
-
-    function addGroup(name) {
-        name = String(name || '').trim();
-        if (!name) return false;
-        const key = name.toLowerCase();
-        if (allGroups.has(key)) return false;
-        allGroups.set(key, name);
-        return true;
-    }
-    function hasGroup(name) {
-        return allGroups.has(String(name || '').trim().toLowerCase());
-    }
-    function getGroupsArray() {
-        return [...allGroups.values()];
-    }
-
     let friendsList = []; 
     let friendsSchedules = {};
     let visibleFriends = new Set(JSON.parse(localStorage.getItem('visibleFriends') || '[]'));
+    
+    let expandedDayDateStr = null; // Отслеживает, какой день сейчас развернут
+    
+    let customScheduleItems = []; // Хранит кастомные элементы расписания
     
     // Настройки отображения
     let showTeacher = localStorage.getItem('showTeacher') !== 'false';
@@ -612,18 +695,6 @@
     // Функция для сохранения состояния видимости
     function saveVisibleFriends() {
         localStorage.setItem('visibleFriends', JSON.stringify([...visibleFriends]));
-    }
-
-    // Планировщик отложенного рендера друзей.
-    // Несколько вызовов подряд схлопываются в один rAF.
-    let _friendsRenderScheduled = false;
-    function scheduleFriendsRender() {
-        if (_friendsRenderScheduled) return;
-        _friendsRenderScheduled = true;
-        requestAnimationFrame(() => {
-            _friendsRenderScheduled = false;
-            renderFriendsCalendar();
-        });
     }
 
     let draggingFriendId = null;
@@ -775,17 +846,12 @@
     // ========================================================
     //   АВТОКОМПЛИТ ГРУПП (T9-стиль с фильтрацией)
     // ========================================================
-     function escapeHtml(s, forAttr = false) {
-        let r = String(s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-        if (!forAttr) r = r.replace(/'/g, '&#39;');
-        return r;
+    function escapeHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
-    const escapeAttr = (s) => escapeHtml(s, true);
-    
+    function escapeAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
     function highlightMatch(text, query) {
         if (!query) return escapeHtml(text);
         let lower = text.toLowerCase();
@@ -830,13 +896,12 @@
             let query = input.value.trim();
             let lower = query.toLowerCase();
 
-            const groupsArr = getGroupsArray();
             let matches = [];
             if (!lower) {
-                matches = groupsArr.slice(0, 40);
+                matches = allGroups.slice(0, 40);
             } else {
                 let starts = [], contains = [];
-                for (let g of groupsArr) {
+                for (let g of allGroups) {
                     let gl = g.toLowerCase();
                     if (gl.startsWith(lower)) starts.push(g);
                     else if (gl.includes(lower)) contains.push(g);
@@ -844,7 +909,7 @@
                 matches = starts.concat(contains).slice(0, 50);
             }
 
-            let exact = lower && allGroups.has(lower);
+            let exact = lower && allGroups.some(g => g.toLowerCase() === lower);
 
             let html = '';
             if (matches.length === 0 && !query) {
@@ -892,7 +957,8 @@
                     items[currentFocus].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 } else if (items.length > 0 && input.value.trim()) {
                     // Enter без выбора — если есть точное совпадение, скроем
-                    if (allGroups.has(input.value.trim().toLowerCase())) hide();
+                    let exact = allGroups.some(g => g.toLowerCase() === input.value.trim().toLowerCase());
+                    if (exact) hide();
                 }
             } else if (e.key === 'Escape') {
                 hide();
@@ -920,7 +986,10 @@
                     });
                     let data = await r.json();
                     if (data.success) {
-                        addGroup(name);
+                        if (!validGroups.has(name.toUpperCase())) {
+                            validGroups.add(name.toUpperCase());
+                            allGroups.push(name);
+                        }
                         input.value = name;
                         hide();
                         input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1004,10 +1073,14 @@
         try {
             let r = await fetch('/api/groups');
             let groups = await r.json();
-            if (groups && Array.isArray(groups)) {
+            if(groups && Array.isArray(groups)) {
                 groups.forEach(g => {
                     let name = typeof g === 'string' ? g : (g.name || g.title || JSON.stringify(g));
-                    addGroup(name);
+                    name = String(name).trim();
+                    if (name && !validGroups.has(name.toUpperCase())) {
+                        validGroups.add(name.toUpperCase());
+                        allGroups.push(name);
+                    }
                 });
             }
             groupsLoaded = true;
@@ -1072,8 +1145,15 @@
     }
 
     function goToToday() {
+        let realTodayStr = getLocalDateStr(new Date());
         currentBaseDate = new Date();
         currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+        
+        // Если мы в развернутом режиме, обновляем целевой день на сегодняшний
+        if (expandedDayDateStr !== null) {
+            expandedDayDateStr = realTodayStr;
+        }
+        
         renderCalendar();
     }
     
@@ -1088,8 +1168,9 @@
         if(!group) return;
 
         showGlobalLoader();
-        await ensureGroupsLoaded();
-                if (allGroups.size > 0 && !hasGroup(group)) {
+        await ensureGroupsLoaded(); 
+
+        if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
             hideGlobalLoader();
             let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу и попробовать загрузить расписание?`);
             if (!add) return;
@@ -1099,7 +1180,8 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ name: group })
                 });
-                addGroup(group);
+                validGroups.add(group.toUpperCase());
+                allGroups.push(group);
             } catch(e) { console.error(e); }
             showGlobalLoader();
         }
@@ -1110,11 +1192,15 @@
         document.getElementById("calendar").innerHTML = "<h6 class='text-center w-100 mt-5'>Загрузка семестра...</h6>";
 
         try {
-            let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(group)}&subgroup=${subgroup}`);
-            let data = await res.json();
+            let [resSched, resCustom] = await Promise.all([
+                fetch(`/api/schedule_all?group=${encodeURIComponent(group)}&subgroup=${subgroup}`),
+                fetch(`/api/custom_schedule?group=${encodeURIComponent(group)}`)
+            ]);
+            let data = await resSched.json();
+            customScheduleItems = await resCustom.json();
             cachedSchedule = applyTimeFix(data);
             await updateLabsCache();
-            await fetchSubjectSettings(); // ЗАГРУЖАЕМ НАСТРОЙКИ ПРЕДМЕТОВ
+            await fetchSubjectSettings(); 
             renderCalendar();
             renderCharts();
         } catch (e) {
@@ -1414,6 +1500,312 @@
         }
     }
 
+    // --- КАСТОМНОЕ РАСПИСАНИЕ И ЛОГИКА ---
+    function getCustomItemsForDate(dateStr) {
+        let items = [];
+        let [ty, tm, td] = dateStr.split('-');
+        let tDate = new Date(ty, tm-1, td);
+        
+        customScheduleItems.forEach(item => {
+            let [by, bm, bd] = item.base_date.split('-');
+            let bDate = new Date(by, bm-1, bd);
+            
+            if (tDate < bDate) return; 
+            
+            // Проверка исключений (если событие отменено или перенесено конкретно в этот день)
+            let exceptions = [];
+            try { exceptions = JSON.parse(item.exceptions || '[]'); } catch(e) {}
+            if (exceptions.includes(dateStr)) return;
+            
+            let diffDays = Math.round(Math.abs(tDate - bDate) / (1000 * 60 * 60 * 24));
+            let match = false;
+            
+            if (item.recurrence === 'none' && diffDays === 0) match = true;
+            else if (item.recurrence === 'weekly' && diffDays % 7 === 0) match = true;
+            else if (item.recurrence === 'biweekly' && diffDays % 14 === 0) match = true;
+            
+            if (match) {
+                items.push({
+                    is_custom: true,
+                    custom_id: item.id,
+                    base_date: item.base_date,
+                    recurrence: item.recurrence,
+                    exceptions: item.exceptions,
+                    is_event: item.is_event === 1,
+                    date: dateStr,
+                    time_range: item.time_range,
+                    lesson: item.lesson,
+                    type_name: item.type_name,
+                    teacher: item.teacher,
+                    location: item.location
+                });
+            }
+        });
+        return items;
+    }
+
+    function toggleCsFields() {
+        let isEvent = document.getElementById('csTypeEvent').checked;
+        document.getElementById('csClassFields').style.display = isEvent ? 'none' : 'block';
+        document.getElementById('csLessonLabel').textContent = isEvent ? 'Текст события' : 'Название предмета';
+    }
+
+    // --- ПРОВЕРКА КОНФЛИКТОВ ---
+    function parseTimeRangeToMins(tr) {
+        if (!tr) return [0, 0];
+        let parts = tr.split('-');
+        let s = parts[0].trim().split(':');
+        let e = parts[1].trim().split(':');
+        return [parseInt(s[0]||0)*60 + parseInt(s[1]||0), parseInt(e[0]||0)*60 + parseInt(e[1]||0)];
+    }
+    
+    function isTimeOverlap(tr1, tr2) {
+        let [s1, e1] = parseTimeRangeToMins(tr1);
+        let [s2, e2] = parseTimeRangeToMins(tr2);
+        return Math.max(s1, s2) < Math.min(e1, e2);
+    }
+
+    function checkScheduleConflict(baseDateStr, timeRange, recurrence, ignoreCustomId = null) {
+        let datesToCheck = [];
+        let [y, m, d] = baseDateStr.split('-');
+        let currD = new Date(y, m-1, d);
+        
+        if (recurrence === 'none') {
+            datesToCheck.push(baseDateStr);
+        } else {
+            let limit = recurrence === 'weekly' ? 25 : 12; // проверяем на полгода вперед
+            for(let i=0; i<limit; i++) {
+                datesToCheck.push(getLocalDateStr(new Date(currD)));
+                currD.setDate(currD.getDate() + (recurrence === 'weekly' ? 7 : 14));
+            }
+        }
+        
+        for (let checkDate of datesToCheck) {
+            let dayConflicts = [];
+            
+            // 1. Проверяем обычное расписание вуза
+            let daySched = cachedSchedule.filter(x => x.date === checkDate);
+            for (let item of daySched) {
+                if (isTimeOverlap(timeRange, item.time_range)) {
+                    dayConflicts.push(`парой "${item.lesson}"`);
+                }
+            }
+            
+            // 2. Проверяем кастомные элементы
+            let customSched = getCustomItemsForDate(checkDate);
+            for (let item of customSched) {
+                if (item.custom_id == ignoreCustomId) continue;
+                if (isTimeOverlap(timeRange, item.time_range)) {
+                    let kind = item.is_event ? 'событием' : 'кастомной парой';
+                    dayConflicts.push(`${kind} "${item.lesson}"`);
+                }
+            }
+            
+            // Анализируем количество конфликтов в конкретный день
+            if (dayConflicts.length === 1) {
+                return { conflict: true, msg: `Внимание! На ${checkDate} обнаружено пересечение с ${dayConflicts[0]}.` };
+            } else if (dayConflicts.length > 1) {
+                return { conflict: true, msg: `Внимание! На ${checkDate} присутствуют многочисленные пересечения.` };
+            }
+        }
+        return null;
+    }
+
+    // --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ КРАСИВОГО ДИАЛОГА ---
+    function askRecurrenceMode(actionTitle, targetDate) {
+        return new Promise((resolve) => {
+            document.getElementById('recurrenceActionTitle').textContent = actionTitle;
+            
+            let btnSingle = document.getElementById('btnRecurrenceSingle');
+            let btnAll = document.getElementById('btnRecurrenceAll');
+            
+            btnSingle.textContent = `Только на этой неделе (${targetDate})`;
+
+            let modalEl = document.getElementById('recurrenceActionModal');
+            let modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+
+            // Очистка старых событий с кнопок (путем клонирования)
+            let newBtnSingle = btnSingle.cloneNode(true);
+            btnSingle.parentNode.replaceChild(newBtnSingle, btnSingle);
+            
+            let newBtnAll = btnAll.cloneNode(true);
+            btnAll.parentNode.replaceChild(newBtnAll, btnAll);
+
+            let resolved = false;
+
+            // Ждем завершения анимации закрытия перед тем как продолжить скрипт (защита от залипания фона)
+            newBtnSingle.onclick = () => {
+                resolved = true;
+                modalEl.addEventListener('hidden.bs.modal', () => resolve("1"), { once: true });
+                modal.hide();
+            };
+
+            newBtnAll.onclick = () => {
+                resolved = true;
+                modalEl.addEventListener('hidden.bs.modal', () => resolve("2"), { once: true });
+                modal.hide();
+            };
+
+            // Если пользователь кликнул мимо окна
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                if (!resolved) resolve(null);
+            }, { once: true });
+
+            modal.show();
+        });
+    }
+
+    // --- УПРАВЛЕНИЕ МОДАЛКОЙ И СОХРАНЕНИЕ ---
+    function openCustomScheduleModal(dateStr, itemId = null) {
+        document.getElementById('csTargetDate').value = dateStr;
+        let modalTitle = document.getElementById('customScheduleModalTitle');
+        let delBtn = document.getElementById('csDeleteBtn');
+        
+        if (itemId) {
+            let item = customScheduleItems.find(i => i.id === itemId);
+            if (!item) return;
+            document.getElementById('csId').value = item.id;
+            document.getElementById('csBaseDate').value = item.base_date;
+            modalTitle.textContent = 'Редактировать';
+            delBtn.style.display = 'block';
+            
+            if (item.is_event) document.getElementById('csTypeEvent').checked = true;
+            else document.getElementById('csTypeClass').checked = true;
+            
+            let timeParts = item.time_range.split('-');
+            document.getElementById('csTimeStart').value = timeParts[0].trim();
+            document.getElementById('csTimeEnd').value = timeParts[1].trim();
+            
+            document.getElementById('csLesson').value = item.lesson;
+            document.getElementById('csTypeName').value = item.type_name || '';
+            document.getElementById('csTeacher').value = item.teacher || '';
+            document.getElementById('csLocation').value = item.location || '';
+            document.getElementById('csRecurrence').value = item.recurrence || 'none';
+        } else {
+            document.getElementById('csId').value = '';
+            document.getElementById('csBaseDate').value = dateStr; 
+            modalTitle.textContent = 'Добавить в расписание';
+            delBtn.style.display = 'none';
+            document.getElementById('csTypeEvent').checked = true;
+            
+            // Подстановка времени по умолчанию
+            let now = new Date();
+            let h = now.getHours();
+            document.getElementById('csTimeStart').value = String(h).padStart(2, '0') + ':00';
+            document.getElementById('csTimeEnd').value = String((h + 1) % 24).padStart(2, '0') + ':00';
+            
+            document.getElementById('csLesson').value = '';
+            document.getElementById('csTypeName').value = '';
+            document.getElementById('csTeacher').value = '';
+            document.getElementById('csLocation').value = '';
+            document.getElementById('csRecurrence').value = 'none';
+        }
+        toggleCsFields();
+        
+        // Правильное открытие без создания дубликатов
+        let modalEl = document.getElementById('customScheduleModal');
+        let modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    async function saveCustomSchedule() {
+        let group = document.getElementById('groupSelect').value.trim();
+        let id = document.getElementById('csId').value;
+        let targetDate = document.getElementById('csTargetDate').value;
+        
+        let start = document.getElementById('csTimeStart').value;
+        let end = document.getElementById('csTimeEnd').value;
+        let time_range = `${start} - ${end}`;
+        
+        let payload = {
+            group: group,
+            base_date: document.getElementById('csBaseDate').value,
+            is_event: document.getElementById('csTypeEvent').checked ? 1 : 0,
+            time_range: time_range,
+            lesson: document.getElementById('csLesson').value.trim(),
+            type_name: document.getElementById('csTypeName').value.trim(),
+            teacher: document.getElementById('csTeacher').value.trim(),
+            location: document.getElementById('csLocation').value.trim(),
+            recurrence: document.getElementById('csRecurrence').value,
+            exceptions: '[]'
+        };
+        
+        if (!start || !end || !payload.lesson) return alert("Заполните время и название!");
+        
+        let conflict = checkScheduleConflict(payload.base_date, payload.time_range, payload.recurrence, id);
+        if (conflict && !confirm(conflict.msg + "\n\nВсё равно сохранить?")) return;
+        
+        if (id) {
+            let originalItem = customScheduleItems.find(i => i.id == id);
+            if (originalItem && originalItem.recurrence !== 'none') {
+                let mode = await askRecurrenceMode("Изменить событие", targetDate);
+                
+                if (mode === "1") {
+                    let ex = JSON.parse(originalItem.exceptions || '[]');
+                    if (!ex.includes(targetDate)) ex.push(targetDate);
+                    await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...originalItem, exceptions: JSON.stringify(ex)}) });
+                    
+                    payload.base_date = targetDate;
+                    payload.recurrence = 'none';
+                    await fetch(`/api/custom_schedule`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                    
+                    let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+                    if (mainModal) mainModal.hide();
+                    await refreshCustomSchedule();
+                    return;
+                } else if (mode !== "2") {
+                    return; // Отмена
+                }
+            }
+            payload.exceptions = originalItem ? originalItem.exceptions : '[]';
+            await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        } else {
+            await fetch(`/api/custom_schedule`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        }
+        
+        let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+        if (mainModal) mainModal.hide();
+        await refreshCustomSchedule();
+    }
+
+    async function deleteCustomSchedule() {
+        let id = document.getElementById('csId').value;
+        let targetDate = document.getElementById('csTargetDate').value;
+        let originalItem = customScheduleItems.find(i => i.id == id);
+        
+        if (originalItem && originalItem.recurrence !== 'none') {
+            let mode = await askRecurrenceMode("Удалить событие", targetDate);
+            
+            if (mode === "1") {
+                let ex = JSON.parse(originalItem.exceptions || '[]');
+                if (!ex.includes(targetDate)) ex.push(targetDate);
+                await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...originalItem, exceptions: JSON.stringify(ex)}) });
+                
+                let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+                if (mainModal) mainModal.hide();
+                await refreshCustomSchedule();
+                return;
+            } else if (mode !== "2") {
+                return; // Отмена
+            }
+        } else {
+            if (!confirm('Удалить этот элемент?')) return;
+        }
+        
+        await fetch(`/api/custom_schedule/${id}`, { method: 'DELETE' });
+        
+        let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
+        if (mainModal) mainModal.hide();
+        await refreshCustomSchedule();
+    }
+
+    async function refreshCustomSchedule() {
+        let group = document.getElementById('groupSelect').value.trim();
+        let res = await fetch(`/api/custom_schedule?group=${encodeURIComponent(group)}`);
+        customScheduleItems = await res.json();
+        renderCalendar();
+    }
+
     // --- ОТРИСОВКА КАЛЕНДАРЯ И ЗАДАЧ ---
     async function renderCalendar() {
         // Запоминаем, какие дни сейчас открыты (развернуты)
@@ -1444,7 +1836,16 @@
             
             let isTodayClass = (dateStr === realTodayStr) ? "day-today" : "";
             let daySchedule = cachedSchedule.filter(item => item.date === dateStr);
-            daySchedule.sort((a, b) => a.n - b.n); 
+            // Подтягиваем пользовательские элементы и объединяем
+            let customItems = getCustomItemsForDate(dateStr);
+            daySchedule = daySchedule.concat(customItems);
+            
+            // Сортируем по часам и минутам
+            daySchedule.sort((a, b) => {
+                let aTime = a.time_range ? a.time_range.split(' - ')[0] : "99:99";
+                let bTime = b.time_range ? b.time_range.split(' - ')[0] : "99:99";
+                return aTime.localeCompare(bTime);
+            });
             
             let scheduleHtml = "";
             if(daySchedule.length > 0) {
@@ -1465,8 +1866,8 @@
                 
                 daySchedule.forEach(item => {
                     let origLesson = item.lesson;
-                    // Создаем уникальный ключ предмета с типом пары
-                    let subjectKey = `${item.lesson} (${item.type_name})`;
+                    // Для кастомных пар не используем настройки (оно настраивается напрямую при редактировании)
+                    let subjectKey = item.is_custom ? origLesson : `${item.lesson} (${item.type_name})`;
                     let safeSubjectKey = subjectKey.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
                     
                     let displayLesson = origLesson;
@@ -1474,30 +1875,41 @@
                     let displayTeacher = item.teacher || "";
                     let displayLocation = item.location || "";
                     
-                    // Теперь проверяем настройки по уникальному ключу с типом (например, "Математика (ПЗ)")
-                    if (cachedSubjectSettings[subjectKey]) {
+                    if (!item.is_custom && cachedSubjectSettings[subjectKey]) {
                         if (cachedSubjectSettings[subjectKey].custom_name) displayLesson = cachedSubjectSettings[subjectKey].custom_name;
                         if (cachedSubjectSettings[subjectKey].link) lessonLink = cachedSubjectSettings[subjectKey].link;
                         if (cachedSubjectSettings[subjectKey].teacher) displayTeacher = cachedSubjectSettings[subjectKey].teacher;
                         if (cachedSubjectSettings[subjectKey].location) displayLocation = cachedSubjectSettings[subjectKey].location;
                     }
                     
-                    // Формируем HTML названия
                     let lessonHtml = lessonLink 
                         ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: #4f46e5;" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
                         : `<span title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</span>`;
                     
-                    // В функцию настройки передаем ключ с типом, чтобы разделять ПЗ/ЛЗ/Лекции
-                    lessonHtml += ` <span style="cursor:pointer; font-size: 0.9em; opacity: 0.4;" onclick="openSubjectSettings('${safeSubjectKey}')" title="Настроить предмет">⚙️</span>`;
+                    if (!item.is_custom) {
+                        lessonHtml += ` <span style="cursor:pointer; font-size: 0.9em; opacity: 0.4;" onclick="openSubjectSettings('${safeSubjectKey}')" title="Настроить предмет">⚙️</span>`;
+                    }
                     
-                    let typeBadge = `<span class="badge bg-secondary ms-2" style="font-size: 0.7em;">${item.type_name}</span>`;
+                    let typeBadge = '';
+                    if (item.is_custom && item.is_event) {
+                         typeBadge = `<span class="badge bg-success ms-2" style="font-size: 0.7em;">Событие</span>`;
+                    } else if (item.type_name) {
+                         typeBadge = `<span class="badge bg-secondary ms-2" style="font-size: 0.7em;">${item.type_name}</span>`;
+                    }
+
+                    // Кнопка редактирования только для кастомных
+                    let editCustomHtml = item.is_custom ? `<span style="cursor:pointer; font-size: 0.9em; margin-left: 8px;" onclick="openCustomScheduleModal('${item.date}', ${item.custom_id})" title="Редактировать">✏️</span>` : '';
+
                     let teacherInfo = (displayTeacher && showTeacher) ? `<span class="text-muted" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(displayTeacher)}</span>` : '';
                     let locInfo = (displayLocation && showLocation) ? `<span class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(displayLocation)}</span>` : '';
 
+                    // Уникальные цвета левых рамок (События зеленым, кастомные пары фиолетовым)
+                    let customStyle = item.is_custom ? (item.is_event ? 'border-left: 3px solid #10b981;' : 'border-left: 3px solid #8b5cf6;') : 'border-left: 3px solid #6366f1;';
+
                     scheduleHtml += `
-                        <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2;">
+                        <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2; ${customStyle}">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <div><strong class="text-primary">${item.time_range}</strong>${typeBadge}</div>
+                                <div><strong class="text-primary">${item.time_range}</strong>${typeBadge}${editCustomHtml}</div>
                                 <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', 'Сдать: ${safeSubjectKey}')">+ Заметка</span>
                             </div>
                             <div class="mb-1">${lessonHtml}</div>
@@ -1510,7 +1922,11 @@
 
             cal.innerHTML += `
                 <div class="day-col ${isTodayClass}" id="day-col-${dateStr}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
-                    <div class="day-header">${displayDate}</div>
+                    <div class="day-header">
+                        <button class="day-nav-arrow" style="display: none;" onclick="navigateExpandedDay('${dateStr}', -1)">&#10094;</button>
+                        <span>${displayDate}</span>
+                        <button class="day-nav-arrow" style="display: none;" onclick="navigateExpandedDay('${dateStr}', 1)">&#10095;</button>
+                    </div>
                     
                     <div class="day-schedule-wrap">
                         <div class="mb-2">${scheduleHtml}</div>
@@ -1523,10 +1939,13 @@
                             <span class="add-task-btn mt-1" style="color: #f59e0b;" onclick="toggleExpandDay('${dateStr}')">Развернуть</span>
                         </div>
                         
-                        <div class="text-center mt-2">
+                        <div class="text-center mt-2 d-flex justify-content-center gap-2">
                             <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm" 
                                     style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
-                                    onclick="toggleTaskInput('${dateStr}')" title="Добавить задачу">+</button>
+                                    onclick="toggleTaskInput('${dateStr}')" title="Добавить заметку">+</button>
+                            <button class="btn btn-outline-success btn-sm rounded-circle fw-bold shadow-sm" 
+                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
+                                    onclick="openCustomScheduleModal('${dateStr}')" title="Добавить в расписание">+</button>
                         </div>
                         
                         <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
@@ -1547,6 +1966,28 @@
         } catch(e) { console.error("Tasks load error"); }
 
         renderFriendsCalendar();
+
+        // Восстанавливаем развернутый режим при перерисовке или нажатии "Сегодня"
+        if (expandedDayDateStr) {
+            let grid = document.querySelector('.calendar-grid');
+            let col = document.getElementById(`day-col-${expandedDayDateStr}`);
+            if (col) {
+                col.classList.add('fullscreen-day');
+                grid.classList.add('has-fullscreen');
+                
+                let btn = document.querySelector(`#expand-btn-wrap-${expandedDayDateStr} span`);
+                if (btn) btn.textContent = "Свернуть";
+                
+                let details = document.getElementById(`schedule-details-${expandedDayDateStr}`);
+                let arrow   = document.getElementById(`arrow-${expandedDayDateStr}`);
+                if (details) details.style.display = "block";
+                if (arrow) arrow.textContent = "▲";
+                
+                rebalanceDayText(expandedDayDateStr);
+            } else {
+                expandedDayDateStr = null; // Если день в другой неделе, сбрасываем (защита от ошибок)
+            }
+        }
     }
 
     function toggleSchedule(dateStr) {
@@ -1576,29 +2017,36 @@
         let headerEl = document.querySelector('.controls-header');
         let headerOffset = headerEl ? headerEl.offsetHeight + 25 : 90;
 
+        function scrollToCol(alignTop) {
+            let rect = col.getBoundingClientRect();
+            let targetY = window.pageYOffset + rect.top - (alignTop ? headerOffset : 0);
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+        }
+
         if (col.classList.contains('fullscreen-day')) {
             // ===== СВОРАЧИВАЕМ =====
             col.classList.remove('fullscreen-day');
             grid.classList.remove('has-fullscreen');
-            if (btn) btn.textContent = "Развернуть";
+            btn.textContent = "Развернуть";
+
+            expandedDayDateStr = null;
 
             let details = document.getElementById(`schedule-details-${dateStr}`);
             let arrow   = document.getElementById(`arrow-${dateStr}`);
             if (details) details.style.display = "none";
             if (arrow)   arrow.textContent = "▼";
 
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    let rect = col.getBoundingClientRect();
-                    let targetY = window.pageYOffset + rect.top - headerOffset;
-                    window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
-                });
-            });
+            // Скроллинг вниз при выходе убран
+
+            // Вызываем пересчет, чтобы убрать кнопку "Развернуть", если заметок не осталось
+            rebalanceDayText(dateStr);
         } else {
             // ===== РАЗВОРАЧИВАЕМ =====
             col.classList.add('fullscreen-day');
             grid.classList.add('has-fullscreen');
-            if (btn) btn.textContent = "Свернуть";
+            btn.textContent = "Свернуть";
+
+            expandedDayDateStr = dateStr;
 
             // Автоматически раскрываем расписание пар
             let details = document.getElementById(`schedule-details-${dateStr}`);
@@ -1611,11 +2059,51 @@
             }
             if (arrow) arrow.textContent = "▲";
 
-            setTimeout(() => {
-                let rect = col.getBoundingClientRect();
-                let targetY = window.pageYOffset + rect.top - headerOffset;
-                window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
-            }, 60);
+            // Скроллим так, чтобы день оказался ПОД шапкой, а не за ней
+            setTimeout(() => scrollToCol(true), 60);
+        }
+    }
+
+    function navigateExpandedDay(dateStr, offset) {
+        let d = new Date(dateStr);
+        d.setDate(d.getDate() + offset);
+        let newDateStr = getLocalDateStr(d);
+        
+        expandedDayDateStr = newDateStr;
+        
+        // Проверяем, находится ли новый день в текущей отображаемой неделе
+        let startStr = getLocalDateStr(currentBaseDate);
+        let endD = new Date(currentBaseDate);
+        endD.setDate(endD.getDate() + 6);
+        let endStr = getLocalDateStr(endD);
+        
+        if (newDateStr >= startStr && newDateStr <= endStr) {
+            // Переключаем дни без полной перезагрузки недели
+            let currentCol = document.getElementById(`day-col-${dateStr}`);
+            if (currentCol) {
+                currentCol.classList.remove('fullscreen-day');
+                let btn = document.querySelector(`#expand-btn-wrap-${dateStr} span`);
+                if(btn) btn.textContent = "Развернуть";
+                let details = document.getElementById(`schedule-details-${dateStr}`);
+                if (details) details.style.display = "none";
+                rebalanceDayText(dateStr);
+            }
+            
+            let newCol = document.getElementById(`day-col-${newDateStr}`);
+            if (newCol) {
+                newCol.classList.add('fullscreen-day');
+                let btn = document.querySelector(`#expand-btn-wrap-${newDateStr} span`);
+                if(btn) btn.textContent = "Свернуть";
+                let details = document.getElementById(`schedule-details-${newDateStr}`);
+                if (details) details.style.display = "block";
+                rebalanceDayText(newDateStr);
+            }
+        } else {
+            // Если переходим на другую неделю, обновляем базу и вызываем рендер
+            currentBaseDate = new Date(d);
+            // Устанавливаем currentBaseDate на понедельник нужной недели
+            currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
+            renderCalendar();
         }
     }
 
@@ -1625,17 +2113,14 @@
 
         let cards = Array.from(container.querySelectorAll('.task-card'));
         let wrap  = document.getElementById(`expand-btn-wrap-${dateStr}`);
-        if (!wrap) return;
-
-        // Определяем, развёрнут ли сейчас день
-        let col = document.getElementById(`day-col-${dateStr}`);
-        let isFullscreen = !!(col && col.classList.contains('fullscreen-day'));
-        let btnSpan = wrap.querySelector('span');
-
-        if (btnSpan) btnSpan.textContent = isFullscreen ? 'Свернуть' : 'Развернуть';
+        let col   = document.getElementById(`day-col-${dateStr}`);
+        
+        // Проверяем, развернут ли день прямо сейчас
+        let isExpanded = col && col.classList.contains('fullscreen-day');
 
         if (cards.length === 0) {
-            wrap.style.display = isFullscreen ? 'block' : 'none';
+            // Если заметок нет, оставляем кнопку только если мы в развернутом режиме (кнопка "Свернуть")
+            if (wrap) wrap.style.display = isExpanded ? 'block' : 'none';
             return;
         }
 
@@ -1646,14 +2131,15 @@
         });
         let totalLen = lengths.reduce((s, n) => s + n, 0);
 
-        // === Условие показа кнопки ===
+        // === Условие показа кнопки "Развернуть" / "Свернуть" ===
         const SHOW_BTN_THRESHOLD = 50;
-        let showButton = isFullscreen || totalLen > SHOW_BTN_THRESHOLD;
-        wrap.style.display = showButton ? 'block' : 'none';
+        // Показываем кнопку, если текста много ИЛИ если режим уже развернут
+        let showButton = totalLen > SHOW_BTN_THRESHOLD || isExpanded;
+        if (wrap) wrap.style.display = showButton ? 'block' : 'none';
 
         // === Условие начала сокращения ===
-        const SINGLE_NOTE_LIMIT = 50;
-        const MULTI_TOTAL_LIMIT = 80;
+        const SINGLE_NOTE_LIMIT = 50;   // для одной заметки
+        const MULTI_TOTAL_LIMIT = 80;   // для 2+ заметок
         let shouldTrim = cards.length === 1
             ? lengths[0] > SINGLE_NOTE_LIMIT
             : totalLen > MULTI_TOTAL_LIMIT;
@@ -1684,10 +2170,10 @@
             return;
         }
 
-        // === 2+ заметок — 80 символов поровну ===
+        // === 2+ заметок — 80 символов поровну между всеми ===
         const TOTAL_BUDGET = MULTI_TOTAL_LIMIT;
-        let share     = Math.floor(TOTAL_BUDGET / cards.length);
-        let remainder = TOTAL_BUDGET - share * cards.length;
+        let share     = Math.floor(TOTAL_BUDGET / cards.length); // базовый кусок каждому
+        let remainder = TOTAL_BUDGET - share * cards.length;     // хвост от деления (0..N-1)
 
         cards.forEach((card, idx) => {
             let shortEl = card.querySelector('.task-text-short');
@@ -1695,6 +2181,7 @@
             if (!shortEl || !fullEl) return;
 
             let full  = fullEl.textContent;
+            // Раздаём остаток по одной лишней букве первым заметкам — так итог ровно 80
             let limit = share + (idx < remainder ? 1 : 0);
 
             if (full.length <= limit) {
@@ -1935,21 +2422,17 @@
         let groupsMap = { "": [] }; 
         customCategories.forEach(c => { if (c) groupsMap[c] = []; });
 
-        let categoriesChanged = false;
         friendsList.forEach(f => {
             let cat = f.category || "";
             if (!groupsMap[cat]) {
                 groupsMap[cat] = [];
-                if (cat && !customCategories.includes(cat)) {
+                if (cat) {
                     customCategories.push(cat);
-                    categoriesChanged = true;
+                    localStorage.setItem('customCategories', JSON.stringify(customCategories));
                 }
             }
             groupsMap[cat].push(f);
         });
-        if (categoriesChanged) {
-            localStorage.setItem('customCategories', JSON.stringify(customCategories));
-        }
 
         let hasAnyGroup = false;
 
@@ -2139,7 +2622,7 @@
                     
                     // Перерисовываем блок друга мгновенно, как только его данные пришли
                     if (visibleFriends.has(friend.id)) {
-                        scheduleFriendsRender();
+                        renderFriendsCalendar();
                     }
                 } catch (e) { 
                     friendsSchedules[friend.id] = []; 
@@ -2155,48 +2638,28 @@
     }
 
     async function syncFriendsSchedules() {
-        const CONCURRENCY = 3; // не более 3 одновременных запросов
-        const queue = friendsList.slice();
-
-        async function syncOne(friend) {
+        // Синхронизируем друзей по очереди, чтобы не забивать пул подключений браузера
+        for (let friend of friendsList) {
             try {
                 let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
                 let data = await res.json();
                 let newData = applyTimeFix(data);
-
-                if (!Array.isArray(newData) || newData.length === 0) return;
-
-                // Защита: не перезатираем расписание, если пропало >10%
-                if (friendsSchedules[friend.id]
-                        && friendsSchedules[friend.id].length > 0
-                        && newData.length < friendsSchedules[friend.id].length * 0.9) {
-                    return;
-                }
-
-                if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
-                    friendsSchedules[friend.id] = newData;
-                    if (visibleFriends.has(friend.id)) {
-                        scheduleFriendsRender();
-                        showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
+                
+                if (Array.isArray(newData) && newData.length > 0) {
+                    if (friendsSchedules[friend.id] && friendsSchedules[friend.id].length > 0 && newData.length < friendsSchedules[friend.id].length * 0.9) {
+                        continue; 
+                    }
+                    
+                    if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
+                        friendsSchedules[friend.id] = newData;
+                        if (visibleFriends.has(friend.id)) {
+                            renderFriendsCalendar(); 
+                            showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
+                        }
                     }
                 }
-            } catch (e) {
-                console.error("Ошибка синхронизации друга", e);
-            }
+            } catch (e) { console.error("Ошибка синхронизации друга", e); }
         }
-
-        async function worker() {
-            while (queue.length > 0) {
-                const friend = queue.shift();
-                if (friend) await syncOne(friend);
-            }
-        }
-
-        const workers = Array.from(
-            { length: Math.min(CONCURRENCY, queue.length) },
-            () => worker()
-        );
-        await Promise.all(workers);
     }
 
     // --- ЗАПОЛНЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ПАПОК ---
@@ -2278,7 +2741,7 @@
         }
         
         await ensureGroupsLoaded(); 
-        if (allGroups.size > 0 && !hasGroup(group)) {
+        if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
             let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу?`);
             if (!add) return;
             try {
@@ -2287,7 +2750,8 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ name: group })
                 });
-                addGroup(group);
+                validGroups.add(group.toUpperCase());
+                allGroups.push(group);
             } catch(e) { console.error(e); }
         }
 
