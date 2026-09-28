@@ -563,9 +563,21 @@
         <div class="mb-3">
             <label class="form-label small">Время</label>
             <div class="d-flex align-items-center gap-2">
-                <input type="time" id="csTimeStart" class="form-control form-control-sm" required>
-                <span>-</span>
-                <input type="time" id="csTimeEnd" class="form-control form-control-sm" required>
+                <select id="csClassNum" class="form-select form-select-sm" onchange="updateTimeFromClassNum()" style="display: none; min-width: 130px;">
+                    <option value="1">1 пара</option>
+                    <option value="2">2 пара</option>
+                    <option value="3">3 пара</option>
+                    <option value="4">4 пара</option>
+                    <option value="5">5 пара</option>
+                    <option value="6">6 пара</option>
+                    <option value="7">7 пара</option>
+                    <option value="8">8 пара</option>
+                </select>
+                <div id="csTimeWrapper" class="d-flex align-items-center gap-2 w-100">
+                    <input type="time" id="csTimeStart" class="form-control form-control-sm" required>
+                    <span>-</span>
+                    <input type="time" id="csTimeEnd" class="form-control form-control-sm" required>
+                </div>
             </div>
         </div>
         
@@ -1544,10 +1556,43 @@
         return items;
     }
 
+    const classTimes = {
+        "1": {start: "08:30", end: "10:00"},
+        "2": {start: "10:10", end: "11:40"},
+        "3": {start: "11:50", end: "13:20"},
+        "4": {start: "14:00", end: "15:30"},
+        "5": {start: "15:40", end: "17:10"},
+        "6": {start: "17:20", end: "18:50"},
+        "7": {start: "19:00", end: "20:30"},
+        "8": {start: "20:40", end: "22:10"}
+    };
+
+    function updateTimeFromClassNum() {
+        let num = document.getElementById('csClassNum').value;
+        if (classTimes[num]) {
+            document.getElementById('csTimeStart').value = classTimes[num].start;
+            document.getElementById('csTimeEnd').value   = classTimes[num].end;
+        }
+    }
+
     function toggleCsFields() {
         let isEvent = document.getElementById('csTypeEvent').checked;
         document.getElementById('csClassFields').style.display = isEvent ? 'none' : 'block';
         document.getElementById('csLessonLabel').textContent = isEvent ? 'Текст события' : 'Название предмета';
+        
+        let selectNum   = document.getElementById('csClassNum');
+        let timeWrapper = document.getElementById('csTimeWrapper');
+        
+        if (isEvent) {
+            // Событие → редактируемое время, без выбора номера пары
+            selectNum.style.display   = 'none';
+            timeWrapper.style.display = 'flex';
+        } else {
+            // Пара → выбор номера пары + редактируемое время
+            selectNum.style.display   = 'block';
+            timeWrapper.style.display = 'flex';
+            updateTimeFromClassNum();
+        }
     }
 
     // --- ПРОВЕРКА КОНФЛИКТОВ ---
@@ -1669,12 +1714,25 @@
             modalTitle.textContent = 'Редактировать';
             delBtn.style.display = 'block';
             
-            if (item.is_event) document.getElementById('csTypeEvent').checked = true;
-            else document.getElementById('csTypeClass').checked = true;
-            
             let timeParts = item.time_range.split('-');
-            document.getElementById('csTimeStart').value = timeParts[0].trim();
-            document.getElementById('csTimeEnd').value = timeParts[1].trim();
+            let tStart = timeParts[0].trim();
+            let tEnd = timeParts[1].trim();
+            
+            document.getElementById('csTimeStart').value = tStart;
+            document.getElementById('csTimeEnd').value = tEnd;
+
+            if (item.is_event) {
+                document.getElementById('csTypeEvent').checked = true;
+            } else {
+                document.getElementById('csTypeClass').checked = true;
+                // Ищем подходящую пару для выпадающего списка
+                for (let num in classTimes) {
+                    if (classTimes[num].start === tStart && classTimes[num].end === tEnd) {
+                        document.getElementById('csClassNum').value = num;
+                        break;
+                    }
+                }
+            }
             
             document.getElementById('csLesson').value = item.lesson;
             document.getElementById('csTypeName').value = item.type_name || '';
@@ -1715,6 +1773,12 @@
         
         let start = document.getElementById('csTimeStart').value;
         let end = document.getElementById('csTimeEnd').value;
+        
+        if (start >= end) {
+            alert("Ошибка: Начальное время должно быть строго раньше времени окончания!");
+            return;
+        }
+        
         let time_range = `${start} - ${end}`;
         
         let payload = {
@@ -2936,11 +3000,17 @@
                     if (showFriends) {
                         html += `<div class="mt-2 border-top pt-2">`;
                         daySchedule.forEach(fItem => {
-                            let typeBadge = `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">${fItem.type_name}</span>`;
+                            let typeBadge = fItem.type_name ? `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">${fItem.type_name}</span>` : '';
+                            
+                            let teacherHtml = (showTeacher && fItem.teacher) ? `<div class="text-muted mt-1" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(fItem.teacher)}</div>` : '';
+                            let locHtml = (showLocation && fItem.location) ? `<div class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(fItem.location)}</div>` : '';
+
                             html += `
                                 <div class="bg-white border rounded p-1 mb-1 shadow-sm" style="font-size: 0.75em; border-left: 3px solid #cbd5e1 !important;">
                                     <strong class="text-primary">${fixTime(fItem.time_range)}</strong>${typeBadge}<br>
                                     <span title="${escapeHtml(fItem.lesson)}">${escapeHtml(fItem.lesson)}</span>
+                                    ${teacherHtml}
+                                    ${locHtml}
                                 </div>`;
                         });
                         html += `</div>`;
