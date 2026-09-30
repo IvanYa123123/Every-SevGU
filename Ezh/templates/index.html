@@ -8,34 +8,31 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { 
-            background-color: #f8fafc; 
+        body {
+            background-color: #f8fafc;
             font-family: 'Inter', sans-serif;
             color: #334155;
         }
-        
+
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; width: 100%; }
-        
-        .day-col { 
-            background: white; 
-            border-radius: 12px; 
-            padding: 12px; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
-            min-height: 250px; 
-            display: flex; 
-            flex-direction: column; 
+
+        .day-col {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            min-height: 250px;
+            display: flex;
+            flex-direction: column;
             border: 1px solid #e2e8f0;
             transition: all 0.3s ease;
         }
-        
-        /* ===== Полноэкранный фокус-режим для дня ===== */
 
-        /* Скрываем остальные дни */
+        /* ===== Полноэкранный фокус-режим для дня ===== */
         .calendar-grid.has-fullscreen .day-col:not(.fullscreen-day) {
             display: none !important;
         }
 
-        /* Плавные переходы у детей — чтобы ширина "перетекала" */
         .day-schedule-wrap,
         .day-tasks-wrap {
             transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
@@ -44,7 +41,6 @@
                         opacity 0.3s ease;
         }
 
-        /* Сам развёрнутый день — с анимацией появления */
         .day-col.fullscreen-day {
             grid-column: 1 / -1;
             flex-direction: row;
@@ -65,7 +61,6 @@
             margin-bottom: 20px;
         }
 
-        /* === ЗАМЕТКИ СЛЕВА — большое поле для текста === */
         .day-col.fullscreen-day .day-tasks-wrap {
             width: 70% !important;
             order: 1;
@@ -74,7 +69,6 @@
             border-right: 2px dashed #e2e8f0;
         }
 
-        /* «Лист» для заметок */
         .day-col.fullscreen-day .day-tasks-wrap > div[id^="tasks-"] {
             background: #ffffff;
             border: 1px solid #e2e8f0;
@@ -91,14 +85,12 @@
             to   { opacity: 1; transform: translateX(0);     }
         }
 
-        /* Карточки заметок в развёрнутом режиме — крупнее */
         .day-col.fullscreen-day .task-card {
             font-size: 1em;
             padding: 12px 14px 10px 14px;
             margin-bottom: 10px;
         }
 
-        /* === РАСПИСАНИЕ ПАР СПРАВА === */
         .day-col.fullscreen-day .day-schedule-wrap {
             width: 30% !important;
             order: 2;
@@ -107,7 +99,6 @@
             border-right: none;
         }
 
-        /* Внутренности расписания — выезжают справа при открытии */
         .day-col.fullscreen-day [id^="schedule-details-"] {
             animation: scheduleSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -117,7 +108,6 @@
             to   { opacity: 1; transform: translateX(0);    }
         }
 
-        /* Пункты расписания появляются поочерёдно */
         .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item {
             animation: itemFade 0.35s ease backwards;
         }
@@ -136,73 +126,127 @@
         /* Логика обрезки текста до 50 символов */
         .task-text-short { display: inline; }
         .task-text-full { display: none; }
-        
+
         .day-col.fullscreen-day .task-text-short { display: none; }
         .day-col.fullscreen-day .task-text-full { display: block; white-space: pre-wrap; width: 100%; }
-        
+
         .day-header { text-align: center; font-weight: 600; font-size: 0.9em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; color: #64748b; }
         .day-today { border: 2px solid #6366f1; background-color: #eef2ff; }
         .day-today .day-header { color: #4f46e5; border-bottom-color: #c7d2fe; }
 
-        .task-card { 
-            padding: 8px 10px 6px 10px; margin-bottom: 8px; border-radius: 8px; 
+        .task-card {
+            padding: 8px 10px 6px 10px; margin-bottom: 8px; border-radius: 8px;
             background: white; border: 1px solid #e2e8f0;
-            color: #334155; cursor: grab; font-size: 0.85em; position: relative; 
+            color: #334155; cursor: grab; font-size: 0.85em; position: relative;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s;
             border-left-width: 5px;
-            display: flex; 
+            display: flex;
             flex-direction: column;
         }
         .task-card:active { cursor: grabbing; }
-        
-        .task-text { 
-            cursor: pointer; 
-            width: 100%; 
-            white-space: pre-wrap; 
-            overflow-wrap: break-word; 
+
+        .task-text {
+            cursor: pointer;
+            width: 100%;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
             word-break: break-word;
             display: block;
         }
-        
-        .task-actions { 
-            display: flex; 
+
+        .task-actions {
+            display: flex;
             gap: 12px;
             align-self: flex-end;
             margin-top: 8px;
         }
-        
-        .task-btn { 
-            cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1; 
-            transition: color 0.2s; text-decoration: none; 
+
+        .task-btn {
+            cursor: pointer; color: #94a3b8; font-size: 1.1em; line-height: 1;
+            transition: color 0.2s; text-decoration: none;
             padding: 4px;
         }
         .task-btn:hover { color: #ef4444; }
         .task-edit:hover { color: #3b82f6; }
-        
+
         .status-green { border-left-color: #10b981; }
         .status-orange { border-left-color: #f59e0b; }
         .status-red { border-left-color: #ef4444; }
         .task-completed { opacity: 0.6; text-decoration: line-through; border-left-color: #94a3b8 !important; background-color: #f8fafc; }
-        
+
         .schedule-item { border-left: 3px solid #6366f1; background: #f8fafc; padding: 8px; margin-bottom: 8px; font-size: 0.85em; border-radius: 0 6px 6px 0; }
         .add-task-btn { font-size: 0.8em; cursor: pointer; color: #6366f1; text-decoration: none; display: inline-block; margin-top: 6px; font-weight: 500; }
         .add-task-btn:hover { text-decoration: underline; }
 
         .schedule-summary { background-color: #f1f5f9; color: #475569; padding: 8px; border-radius: 8px; font-size: 0.8em; font-weight: 600; cursor: pointer; text-align: center; user-select: none; margin-bottom: 10px; transition: background 0.2s; }
         .schedule-summary:hover { background-color: #e2e8f0; }
-        
-        .nav-arrow { font-size: 2rem; color: #cbd5e1; background: none; border: none; padding: 0 15px; cursor: pointer; transition: color 0.2s; }
+
+        /* --- Стрелки навигации --- */
+        .nav-arrow {
+            font-size: 2rem;
+            color: #cbd5e1;
+            background: none;
+            border: none;
+            padding: 0 15px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
         .nav-arrow:hover { color: #6366f1; }
 
+        /* Обёртка календаря: кнопки встают рядом, но вертикально центрируются
+           относительно САМОГО календаря, а не всего столбца */
+        .calendar-nav-row {
+            display: flex;
+            align-items: stretch;
+            width: 100%;
+        }
+        .calendar-nav-row .nav-side {
+            display: flex;
+            align-items: center;
+            flex: 0 0 auto;
+        }
+        .calendar-nav-row .calendar-grid {
+            flex: 1 1 auto;
+            width: auto; /* перебиваем width:100% у .calendar-grid */
+        }
+
+        /* Обёртка для списка друзей со sticky-кнопками */
+        .friends-list-wrapper {
+            position: relative;
+            min-height: 50px;
+            padding: 0 40px;
+        }
+
+        .friends-nav-btn {
+            position: sticky;
+            top: 50vh;
+            margin-top: -20px;
+            z-index: 10;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        .friends-nav-btn.show-friends-nav {
+            opacity: 1;
+            visibility: visible;
+        }
+        .friends-nav-prev { float: left; margin-left: -40px; }
+        .friends-nav-next { float: right; margin-right: -40px; }
+        .friends-list-wrapper::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
         /* --- Сетка друга --- */
-        .friend-col { 
-            background: #ffffff; 
+        .friend-col {
+            background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 8px; 
-            padding: 8px; 
-            min-height: 90px; 
-            display: flex; 
-            flex-direction: column; 
+            border-radius: 8px;
+            padding: 8px;
+            min-height: 90px;
+            display: flex;
+            flex-direction: column;
         }
         .shared-class {
             padding: 4px 6px;
@@ -236,7 +280,7 @@
 
         /* --- Сворачиваемые виджеты --- */
         .widget-body-wrap { overflow: hidden; transition: height 0.3s ease-out; }
-        
+
         /* Закрепляем шапку при прокрутке */
         .controls-header { position: sticky; top: 15px; z-index: 1050; }
 
@@ -308,11 +352,6 @@
             text-align: center;
         }
         .autocomplete-empty:hover { background: transparent; }
-
-        /* Стрелочки навигации в развернутом дне */
-        .day-col.fullscreen-day .day-header { display: flex; justify-content: space-between; align-items: center; }
-        .day-col.fullscreen-day .day-nav-arrow { display: block !important; background: none; border: none; font-size: 1.5rem; color: #cbd5e1; cursor: pointer; transition: color 0.2s; padding: 0 15px; }
-        .day-col.fullscreen-day .day-nav-arrow:hover { color: #6366f1; }
     </style>
 </head>
 <body>
@@ -395,43 +434,52 @@
     <div class="row">
         <!-- Основная область: Календарь и друзья -->
         <div class="col-xl-9 col-lg-8 mb-4">
-            <div class="d-flex align-items-stretch w-100">
-                <div class="d-flex align-items-center">
-                    <button class="nav-arrow" onclick="changeWeek(-1)">&#10094;</button>
-                </div>
-                
-                <div class="w-100 d-flex flex-column">
-                    <!-- Календарь -->
-                    <div class="calendar-grid flex-grow-1" id="calendar"></div>
-                    
-                    <!-- Панель управления друзьями -->
-                    <div class="mt-4 text-start d-flex align-items-center flex-wrap gap-2 mb-2 bg-white p-2 rounded shadow-sm border" id="friendsControlsPanel">
-                        <button class="btn btn-sm btn-outline-primary fw-bold" onclick="showAddFriendModal()">+ Добавить друга</button>
-                        <div class="vr mx-1"></div>
-                        
-                        <div class="dropdown d-flex align-items-center">
-                            <button class="btn btn-sm btn-primary text-white dropdown-toggle fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                                Кого показывать?
-                            </button>
-                            <div id="friendsLoader" class="spinner-border spinner-border-sm text-primary ms-2" role="status" style="display: none;"></div>
-                            <ul class="dropdown-menu shadow-sm border-0" id="friendTogglesDropdown" style="min-width: 250px;"></ul>
-                        </div>
+            <div class="d-flex flex-column w-100">
+
+                <!-- Обёртка календаря: стрелки + сам календарь -->
+                <div class="calendar-nav-row">
+                    <div class="nav-side">
+                        <button class="nav-arrow" onclick="changeWeek(-1)">&#10094;</button>
                     </div>
-                    
-                    <!-- Сетки друзей -->
+                    <div class="calendar-grid flex-grow-1" id="calendar"></div>
+                    <div class="nav-side">
+                        <button class="nav-arrow" onclick="changeWeek(1)">&#10095;</button>
+                    </div>
+                </div>
+
+                <!-- Панель управления друзьями -->
+                <div class="mt-4 text-start d-flex align-items-center flex-wrap gap-2 mb-2 bg-white p-2 rounded shadow-sm border" id="friendsControlsPanel">
+                    <button class="btn btn-sm btn-outline-primary fw-bold" onclick="showAddFriendModal()">+ Добавить друга</button>
+                    <div class="vr mx-1"></div>
+
+                    <div class="dropdown d-flex align-items-center">
+                        <button class="btn btn-sm btn-primary text-white dropdown-toggle fw-bold shadow-sm" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            Кого показывать?
+                        </button>
+                        <div id="friendsLoader" class="spinner-border spinner-border-sm text-primary ms-2" role="status" style="display: none;"></div>
+                        <ul class="dropdown-menu shadow-sm border-0" id="friendTogglesDropdown" style="min-width: 250px;"></ul>
+                    </div>
+                </div>
+
+                <!-- Обертка для сеток друзей со sticky-стрелками -->
+                <div class="friends-list-wrapper">
+                    <div class="friends-nav-btn friends-nav-prev" id="friendsNavPrev">
+                        <button class="nav-arrow" onclick="changeWeek(-1)">&#10094;</button>
+                    </div>
+                    <div class="friends-nav-btn friends-nav-next" id="friendsNavNext">
+                        <button class="nav-arrow" onclick="changeWeek(1)">&#10095;</button>
+                    </div>
+
                     <div id="friendsCalendarsContainer" class="d-flex flex-column gap-3 mb-4"></div>
                 </div>
-                
-                <div class="d-flex align-items-center">
-                    <button class="nav-arrow" onclick="changeWeek(1)">&#10095;</button>
-                </div>
+
             </div>
         </div>
-        
+
         <!-- Правая панель: Виджеты (Статистика) -->
         <div class="col-xl-3 col-lg-4">
             <div class="sticky-top d-flex flex-column gap-3" style="top: 15px;">
-                
+
                 <!-- Виджет 1: Общие пары -->
                 <div class="bg-white rounded shadow-sm border p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -442,7 +490,7 @@
                         <canvas id="globalStatsChart"></canvas>
                     </div>
                 </div>
-                
+
                 <!-- Виджет 2: Лабораторные -->
                 <div class="bg-white rounded shadow-sm border p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -547,8 +595,8 @@
       <div class="modal-body">
         <input type="hidden" id="csId">
         <input type="hidden" id="csBaseDate">
-        <input type="hidden" id="csTargetDate"> <!-- Отслеживает на какой день кликнули -->
-        
+        <input type="hidden" id="csTargetDate">
+
         <div class="mb-3 d-flex gap-3">
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="csType" id="csTypeEvent" value="1" checked onchange="toggleCsFields()">
@@ -580,7 +628,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="mb-3">
             <label class="form-label small" id="csLessonLabel">Текст события</label>
             <input type="text" id="csLesson" class="form-control form-control-sm" placeholder="Название...">
@@ -678,33 +726,31 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
-    let currentBaseDate = new Date(); 
+    let currentBaseDate = new Date();
     currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
-    
-    let cachedSchedule = []; 
+
+    let cachedSchedule = [];
     let cachedLabs = {};
     let cachedSubjectSettings = {};
     let globalChart = null;
     let globalLabChart = null;
-    let currentSubjectsList = []; 
+    let currentSubjectsList = [];
 
-    let validGroups = new Set(); 
-    let allGroups = []; // для автокомплита (в исходном порядке)
+    let validGroups = new Set();
+    let allGroups = [];
     let groupsLoaded = false;
-    let friendsList = []; 
+    let friendsList = [];
     let friendsSchedules = {};
     let visibleFriends = new Set(JSON.parse(localStorage.getItem('visibleFriends') || '[]'));
-    
-    let expandedDayDateStr = null; // Отслеживает, какой день сейчас развернут
-    
-    let customScheduleItems = []; // Хранит кастомные элементы расписания
-    
-    // Настройки отображения
+
+    let expandedDayDateStr = null;
+
+    let customScheduleItems = [];
+
     let showTeacher = localStorage.getItem('showTeacher') !== 'false';
     let showLocation = localStorage.getItem('showLocation') !== 'false';
     let showFriends = localStorage.getItem('showFriends') !== 'false';
-    
-    // Функция для сохранения состояния видимости
+
     function saveVisibleFriends() {
         localStorage.setItem('visibleFriends', JSON.stringify([...visibleFriends]));
     }
@@ -714,16 +760,13 @@
     let customCategories = JSON.parse(localStorage.getItem('customCategories') || '[]');
     let draggingDropdownFriendId = null;
 
-    // --- ФУНКЦИЯ-ПОМОЩНИК ДЛЯ КАСТОМНЫХ НАЗВАНИЙ ---
     function getDisplaySubjectKey(subjKey) {
-        // subjKey передается в формате "Предмет (Тип)", например "Математика (ПЗ)"
         if (cachedSubjectSettings && cachedSubjectSettings[subjKey] && cachedSubjectSettings[subjKey].custom_name) {
             return cachedSubjectSettings[subjKey].custom_name;
         }
         return subjKey;
     }
 
-    // Лоадер
     const loadingPhrases = [
         "Грызем гранит науки...",
         "Связываемся с деканатом...",
@@ -740,19 +783,19 @@
     ];
     let loaderInterval = null;
 
-    function showGlobalLoader() { 
+    function showGlobalLoader() {
         let idx = 0;
         document.getElementById('loaderText').textContent = loadingPhrases[idx];
-        document.getElementById('globalLoader').style.display = 'flex'; 
-        
+        document.getElementById('globalLoader').style.display = 'flex';
+
         loaderInterval = setInterval(() => {
             idx = (idx + 1) % loadingPhrases.length;
             document.getElementById('loaderText').textContent = loadingPhrases[idx];
         }, 3000);
     }
 
-    function hideGlobalLoader() { 
-        document.getElementById('globalLoader').style.display = 'none'; 
+    function hideGlobalLoader() {
+        document.getElementById('globalLoader').style.display = 'none';
         if (loaderInterval) clearInterval(loaderInterval);
     }
 
@@ -760,24 +803,21 @@
         let notif = document.getElementById('updateNotification');
         document.getElementById('updateNotificationText').textContent = message;
         notif.style.display = 'block';
-        
-        // Плавное появление (используем Web Animations API)
+
         notif.animate([
-            {opacity: 0, transform: 'translateY(20px)'}, 
+            {opacity: 0, transform: 'translateY(20px)'},
             {opacity: 1, transform: 'translateY(0)'}
         ], {duration: 300, fill: 'forwards'});
-        
-        // Скрываем через 3 секунды
+
         setTimeout(() => {
             let anim = notif.animate([
-                {opacity: 1, transform: 'translateY(0)'}, 
+                {opacity: 1, transform: 'translateY(0)'},
                 {opacity: 0, transform: 'translateY(20px)'}
             ], {duration: 300, fill: 'forwards'});
             anim.onfinish = () => notif.style.display = 'none';
         }, 3000);
     }
 
-    // Сворачивание виджетов с сохранением состояния
     function toggleWidget(bodyId, btn) {
         let body = document.getElementById(bodyId);
         if (body.style.height === '0px') {
@@ -798,12 +838,10 @@
         }
     }
 
-    // Вспомогательные функции дат и времени
     function getLocalDateStr(d) {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
-    // Исправление времени пары №4: 13:50 → 14:00, конец 15:20 → 15:30
     function fixTime(str) {
         if (!str) return '';
         return str.replace('13:50', '14:00').replace('15:20', '15:30');
@@ -817,41 +855,35 @@
         return scheduleArray;
     }
 
-    // Умное сравнение расписаний (игнорирует порядок ключей в JSON)
     function isScheduleDifferent(newSched, oldSched) {
         if (!newSched || !oldSched) return true;
         if (newSched.length !== oldSched.length) return true;
-        
-        // Создаем уникальные отпечатки: склеиваем дату, номер пары, название и тип
+
         const getHash = (arr) => arr.map(x => `${x.date}_${x.n}_${x.lesson}_${x.type_name}`).sort().join('|');
         return getHash(newSched) !== getHash(oldSched);
     }
 
-    // УМНЫЙ АЛГОРИТМ ОПРЕДЕЛЕНИЯ КОРПУСА
     function getCampus(item) {
         if (!item) return 'unknown';
-        
+
         let roman = null;
-        
-        // 1. Ищем корпус напрямую в специальном поле location (например "I-416", "VII-A-34")
+
         if (item.location) {
             let loc = item.location.toUpperCase().trim();
-            // Ищем римскую цифру в самом начале строки до первого разделителя
             let m = loc.match(/^(VIII|VII|IX|VI|IV|V|III|II|I)(?=[^A-ZА-Яa-zа-я0-9]|$)/);
             if (m) roman = m[1];
         }
-        
-        // 2. Если в location пусто (null), пытаемся вытащить из названия предмета (на всякий случай)
+
         if (!roman && item.lesson) {
             let txt = item.lesson.toUpperCase();
             let m2 = txt.match(/(?:АУД|КАБ|КОРП|КОРПУС|АУДИТОРИЯ)[.\s]*[:\-]?\s*(VIII|VII|IX|VI|IV|V|III|II|I)(?:[^A-ZА-Я0-9]|$)/);
             if (m2) roman = m2[1];
         }
-        
+
         if (roman === 'VII' || roman === 'VIII' || roman === 'IX') return 'galosha';
         if (roman === 'V' || roman === 'VI') return 'gogol';
         if (roman === 'I' || roman === 'II' || roman === 'III' || roman === 'IV') return 'univer';
-        
+
         return 'unknown';
     }
 
@@ -968,7 +1000,6 @@
                     e.stopPropagation();
                     items[currentFocus].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
                 } else if (items.length > 0 && input.value.trim()) {
-                    // Enter без выбора — если есть точное совпадение, скроем
                     let exact = allGroups.some(g => g.toLowerCase() === input.value.trim().toLowerCase());
                     if (exact) hide();
                 }
@@ -1022,8 +1053,7 @@
     document.addEventListener("DOMContentLoaded", async () => {
         try {
             showGlobalLoader();
-            
-            // Восстановление состояния виджетов из памяти
+
             ['globalStatsBody', 'labStatsBody', 'labPacingBody'].forEach(bodyId => {
                 let state = localStorage.getItem('widget_' + bodyId);
                 if (state === 'collapsed') {
@@ -1039,15 +1069,13 @@
                     }
                 }
             });
-            
-            // Устанавливаем положение ползунков
+
             document.getElementById('toggleTeacher').checked = showTeacher;
             document.getElementById('toggleLocation').checked = showLocation;
             document.getElementById('toggleFriends').checked = showFriends;
-            
-            await ensureGroupsLoaded(); 
 
-            // Подключаем автокомплит к полям ввода группы
+            await ensureGroupsLoaded();
+
             initGroupAutocomplete(document.getElementById('groupSelect'));
             initGroupAutocomplete(document.getElementById('friendGroup'));
 
@@ -1056,7 +1084,7 @@
                 if(localStorage.getItem('savedSubgroup')) {
                     document.getElementById('subgroupSelect').value = localStorage.getItem('savedSubgroup');
                 }
-                await fetchSemesterData(); 
+                await fetchSemesterData();
             } else {
                 updateWeekDropdown();
                 renderCalendar();
@@ -1077,7 +1105,7 @@
         localStorage.setItem('showTeacher', showTeacher);
         localStorage.setItem('showLocation', showLocation);
         localStorage.setItem('showFriends', showFriends);
-        renderCalendar(); // Сразу перерисовываем расписание
+        renderCalendar();
     }
 
     async function ensureGroupsLoaded() {
@@ -1105,25 +1133,25 @@
         let btn = document.getElementById("weekDropdownBtn");
         if (!menu || !btn) return;
         menu.innerHTML = "";
-        
+
         let realBase = new Date();
         realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
         realBase.setHours(0,0,0,0);
-        
+
         let currBase = new Date(currentBaseDate);
         currBase.setHours(0,0,0,0);
-        
+
         let currentOffset = Math.round((currBase - realBase) / (7 * 24 * 60 * 60 * 1000));
-        
+
         for (let i = -20; i <= 20; i++) {
             let d = new Date(realBase);
             d.setDate(d.getDate() + (i * 7));
             let endD = new Date(d);
             endD.setDate(endD.getDate() + 6);
-            
+
             let label = `${d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endD.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
             if (i === 0) label = `🏠 Текущая: ${label}`;
-            
+
             let li = document.createElement('li');
             let a = document.createElement('a');
             a.className = 'dropdown-item' + (i === currentOffset ? ' active' : '');
@@ -1133,13 +1161,13 @@
             li.appendChild(a);
             menu.appendChild(li);
         }
-        
+
         let dBtn = new Date(realBase);
         dBtn.setDate(dBtn.getDate() + (currentOffset * 7));
         let endDBtn = new Date(dBtn);
         endDBtn.setDate(endDBtn.getDate() + 6);
         btn.textContent = `📅 ${dBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endDBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
-        
+
         btn.addEventListener('shown.bs.dropdown', () => {
             setTimeout(() => {
                 let active = menu.querySelector('.dropdown-item.active');
@@ -1153,6 +1181,11 @@
         realBase.setDate(realBase.getDate() - (realBase.getDay() === 0 ? 6 : realBase.getDay() - 1));
         currentBaseDate = new Date(realBase);
         currentBaseDate.setDate(currentBaseDate.getDate() + (parseInt(offsetVal) * 7));
+
+        if (expandedDayDateStr !== null) {
+            expandedDayDateStr = getLocalDateStr(currentBaseDate);
+        }
+
         renderCalendar();
     }
 
@@ -1160,17 +1193,21 @@
         let realTodayStr = getLocalDateStr(new Date());
         currentBaseDate = new Date();
         currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
-        
-        // Если мы в развернутом режиме, обновляем целевой день на сегодняшний
+
         if (expandedDayDateStr !== null) {
             expandedDayDateStr = realTodayStr;
         }
-        
+
         renderCalendar();
     }
-    
+
     function changeWeek(offset) {
         currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
+
+        if (expandedDayDateStr !== null) {
+            expandedDayDateStr = getLocalDateStr(currentBaseDate);
+        }
+
         renderCalendar();
     }
 
@@ -1180,7 +1217,7 @@
         if(!group) return;
 
         showGlobalLoader();
-        await ensureGroupsLoaded(); 
+        await ensureGroupsLoaded();
 
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
             hideGlobalLoader();
@@ -1200,7 +1237,7 @@
 
         localStorage.setItem('savedGroup', group);
         localStorage.setItem('savedSubgroup', subgroup);
-        
+
         document.getElementById("calendar").innerHTML = "<h6 class='text-center w-100 mt-5'>Загрузка семестра...</h6>";
 
         try {
@@ -1212,17 +1249,16 @@
             customScheduleItems = await resCustom.json();
             cachedSchedule = applyTimeFix(data);
             await updateLabsCache();
-            await fetchSubjectSettings(); 
+            await fetchSubjectSettings();
             renderCalendar();
             renderCharts();
         } catch (e) {
             document.getElementById("calendar").innerHTML = `<h6 class='text-center text-danger w-100 mt-5'>Ошибка загрузки</h6>`;
         }
-        
+
         hideGlobalLoader();
-        fetchFriends(); 
-        
-        // Запускаем фоновую синхронизацию с сайтом СевГУ
+        fetchFriends();
+
         syncSemesterData(group, subgroup);
     }
 
@@ -1231,15 +1267,13 @@
             let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(group)}&subgroup=${subgroup}`);
             let data = await res.json();
             let newData = applyTimeFix(data);
-            
-            // Строгая проверка: убеждаемся, что пришли реальные данные в виде массива
+
             if (Array.isArray(newData) && newData.length > 0) {
-                // Усиленная защита: отменяем обновление, если пропало больше 10% расписания
                 if (cachedSchedule && cachedSchedule.length > 0 && newData.length < cachedSchedule.length * 0.9) {
                     console.error("Критический сбой СевГУ: попытка затереть расписание. Фоновое обновление отменено!");
                     return;
                 }
-                
+
                 if (isScheduleDifferent(newData, cachedSchedule)) {
                     cachedSchedule = newData;
                     renderCalendar();
@@ -1258,32 +1292,31 @@
         cachedLabs = await res.json();
     }
 
-    // --- ПОЛНЫЕ ФУНКЦИИ СТАТИСТИКИ (КЛИКАБЕЛЬНЫЕ) ---
+    // --- СТАТИСТИКА ---
     function showStats() {
         const group = document.getElementById("groupSelect").value.trim();
         if(!group || cachedSchedule.length === 0) return alert("Сначала загрузите расписание!");
 
         let modal = new bootstrap.Modal(document.getElementById('statsModal'));
         modal.show();
-        
+
         let stats = {};
         let todayStr = getLocalDateStr(new Date());
 
         cachedSchedule.forEach(item => {
             let subject = item.lesson;
             let type = item.type_name;
-            
-            // Сохраняем оригинальное название для группировки
+
             if (!stats[subject]) stats[subject] = { display: subject, types: {} };
             if (!stats[subject].types[type]) stats[subject].types[type] = { past: 0, future: 0 };
-            
+
             if (item.date < todayStr) {
                 stats[subject].types[type].past++;
             } else {
                 stats[subject].types[type].future++;
             }
         });
-        
+
         let html = '<div class="row">';
         for(let subject in stats) {
             let displayTitle = stats[subject].display;
@@ -1296,7 +1329,7 @@
                     <div class="col-6 mb-2">
                         <div class="border rounded p-2 text-center bg-white shadow-sm">
                             <small class="text-muted d-block border-bottom mb-1" style="font-size:0.75em">${type}</small>
-                            <span class="text-danger fw-bold" title="Прошло">✔ ${past}</span> | 
+                            <span class="text-danger fw-bold" title="Прошло">✔ ${past}</span> |
                             <span class="text-success fw-bold" title="Осталось">⏳ ${future}</span>
                         </div>
                     </div>`;
@@ -1304,7 +1337,7 @@
             html += `</div></div></div></div>`;
         }
         html += '</div>';
-        
+
         if(Object.keys(stats).length === 0) html = "<p class='text-center'>Нет данных для выбранной группы.</p>";
         document.getElementById('statsContent').innerHTML = html;
     }
@@ -1318,7 +1351,6 @@
     }
 
     function renderLabsContent() {
-        // Строго фильтруем и разделяем ПЗ и ЛЗ
         let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
         let uniqueSubjects = [...new Set(labItems.map(item => `${item.lesson} (${item.type_name})`))].sort();
         currentSubjectsList = uniqueSubjects;
@@ -1335,8 +1367,7 @@
             let comp = cachedLabs[subjKey] ? cachedLabs[subjKey].completed : 0;
             let tot = cachedLabs[subjKey] ? cachedLabs[subjKey].total : 0;
             let percent = tot > 0 ? Math.round((comp / tot) * 100) : 0;
-            
-            // Подтягиваем пользовательское название
+
             let displaySubj = getDisplaySubjectKey(subjKey);
 
             html += `
@@ -1349,7 +1380,7 @@
                         <input type="number" id="lab-tot-${idx}" class="form-control form-control-sm" style="width: 70px" value="${tot}" min="0">
                     </div>
                     <div class="progress" style="height: 10px;">
-                        <div class="progress-bar ${percent === 100 ? 'bg-success' : 'bg-info'}" 
+                        <div class="progress-bar ${percent === 100 ? 'bg-success' : 'bg-info'}"
                              role="progressbar" style="width: ${percent}%"></div>
                     </div>
                 </div>
@@ -1359,7 +1390,7 @@
         <div class="d-flex justify-content-end mb-2">
             <button class="btn btn-sm btn-primary px-4 shadow-sm" onclick="saveAllLabs()">Сохранить все</button>
         </div>`;
-        
+
         if(uniqueSubjects.length === 0) html = "<p class='text-center'>Нет данных.</p>";
         document.getElementById('labsContent').innerHTML = html;
     }
@@ -1374,13 +1405,13 @@
             payload.push({ group, subject, completed: comp, total: tot });
         });
         await fetch('/api/labs', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-        await updateLabsCache(); 
-        renderCharts(); 
+        await updateLabsCache();
+        renderCharts();
         let modal = bootstrap.Modal.getInstance(document.getElementById('labsModal'));
         if(modal) modal.hide();
     }
 
-    // --- ОТРИСОВКА ГРАФИКОВ ---
+    // --- ГРАФИКИ ---
     function renderCharts() {
         let passed = 0, remaining = 0;
         let todayStr = getLocalDateStr(new Date());
@@ -1401,7 +1432,7 @@
                     labels: ['Прошло', 'Осталось'],
                     datasets: [{
                         data: [passed, remaining],
-                        backgroundColor: ['#6366f1', '#cbd5e1'], 
+                        backgroundColor: ['#6366f1', '#cbd5e1'],
                         borderWidth: 0
                     }]
                 },
@@ -1409,19 +1440,18 @@
             });
         }
 
-        // Формируем список актуальных ЛЗ и ПЗ из расписания
         let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
         let validSubjects = new Set(labItems.map(item => `${item.lesson} (${item.type_name})`));
 
         let totLabs = 0, compLabs = 0;
         for (let subj in cachedLabs) {
-            if (!validSubjects.has(subj)) continue; // Игнорируем старые записи без приписок
+            if (!validSubjects.has(subj)) continue;
             totLabs += cachedLabs[subj].total;
             compLabs += cachedLabs[subj].completed;
         }
         let uncompLabs = Math.max(0, totLabs - compLabs);
         let labData = totLabs === 0 ? [0, 1] : [compLabs, uncompLabs];
-        let labColors = totLabs === 0 ? ['#f1f5f9', '#f1f5f9'] : ['#14b8a6', '#f59e0b']; 
+        let labColors = totLabs === 0 ? ['#f1f5f9', '#f1f5f9'] : ['#14b8a6', '#f59e0b'];
 
         const ctx2 = document.getElementById('labStatsChart').getContext('2d');
         if(globalLabChart) {
@@ -1447,16 +1477,15 @@
             container.innerHTML = "<div class='text-center text-muted small mt-2'>Нет данных</div>";
             return;
         }
-        
+
         let todayStr = getLocalDateStr(new Date());
         let scheduleStats = {};
-        
-        // Разделяем ПЗ и ЛЗ
+
         cachedSchedule.forEach(item => {
             if (item.type_name === 'ЛЗ' || item.type_name === 'ПЗ') {
                 let subjKey = `${item.lesson} (${item.type_name})`;
                 if (!scheduleStats[subjKey]) scheduleStats[subjKey] = { passed: 0, total: 0 };
-                
+
                 scheduleStats[subjKey].total++;
                 if (item.date < todayStr) {
                     scheduleStats[subjKey].passed++;
@@ -1467,16 +1496,16 @@
         let validSubjects = new Set(Object.keys(scheduleStats));
         let html = '<div class="list-group list-group-flush">';
         let hasData = false;
-        
+
         for (let subj in cachedLabs) {
-            if (!validSubjects.has(subj)) continue; 
-            
+            if (!validSubjects.has(subj)) continue;
+
             let data = cachedLabs[subj];
             if (data.total === 0) continue;
-            
+
             hasData = true;
             let stats = scheduleStats[subj];
-            
+
             let expectedCount = 0;
             if (stats.total > 1) {
                 let paceRatio = stats.passed / (stats.total - 1);
@@ -1484,15 +1513,14 @@
             } else if (stats.passed >= 1) {
                 expectedCount = data.total;
             }
-            
+
             if (expectedCount > data.total) expectedCount = data.total;
             if (expectedCount < 0) expectedCount = 0;
 
             let actualCount = data.completed;
             let statusClass = actualCount >= expectedCount ? 'text-success' : 'text-danger';
             let icon = actualCount >= expectedCount ? '✅' : '⚠️';
-            
-            // Получаем кастомное название
+
             let displaySubj = getDisplaySubjectKey(subj);
 
             html += `
@@ -1504,7 +1532,7 @@
                 </div>`;
         }
         html += '</div>';
-        
+
         if (!hasData) {
             container.innerHTML = "<div class='text-center text-muted small mt-2'>Нет данных</div>";
         } else {
@@ -1512,30 +1540,29 @@
         }
     }
 
-    // --- КАСТОМНОЕ РАСПИСАНИЕ И ЛОГИКА ---
+    // --- КАСТОМНОЕ РАСПИСАНИЕ ---
     function getCustomItemsForDate(dateStr) {
         let items = [];
         let [ty, tm, td] = dateStr.split('-');
         let tDate = new Date(ty, tm-1, td);
-        
+
         customScheduleItems.forEach(item => {
             let [by, bm, bd] = item.base_date.split('-');
             let bDate = new Date(by, bm-1, bd);
-            
-            if (tDate < bDate) return; 
-            
-            // Проверка исключений (если событие отменено или перенесено конкретно в этот день)
+
+            if (tDate < bDate) return;
+
             let exceptions = [];
             try { exceptions = JSON.parse(item.exceptions || '[]'); } catch(e) {}
             if (exceptions.includes(dateStr)) return;
-            
+
             let diffDays = Math.round(Math.abs(tDate - bDate) / (1000 * 60 * 60 * 24));
             let match = false;
-            
+
             if (item.recurrence === 'none' && diffDays === 0) match = true;
             else if (item.recurrence === 'weekly' && diffDays % 7 === 0) match = true;
             else if (item.recurrence === 'biweekly' && diffDays % 14 === 0) match = true;
-            
+
             if (match) {
                 items.push({
                     is_custom: true,
@@ -1579,16 +1606,14 @@
         let isEvent = document.getElementById('csTypeEvent').checked;
         document.getElementById('csClassFields').style.display = isEvent ? 'none' : 'block';
         document.getElementById('csLessonLabel').textContent = isEvent ? 'Текст события' : 'Название предмета';
-        
+
         let selectNum   = document.getElementById('csClassNum');
         let timeWrapper = document.getElementById('csTimeWrapper');
-        
+
         if (isEvent) {
-            // Событие → редактируемое время, без выбора номера пары
             selectNum.style.display   = 'none';
             timeWrapper.style.display = 'flex';
         } else {
-            // Пара → выбор номера пары + редактируемое время
             selectNum.style.display   = 'block';
             timeWrapper.style.display = 'flex';
             updateTimeFromClassNum();
@@ -1603,7 +1628,7 @@
         let e = parts[1].trim().split(':');
         return [parseInt(s[0]||0)*60 + parseInt(s[1]||0), parseInt(e[0]||0)*60 + parseInt(e[1]||0)];
     }
-    
+
     function isTimeOverlap(tr1, tr2) {
         let [s1, e1] = parseTimeRangeToMins(tr1);
         let [s2, e2] = parseTimeRangeToMins(tr2);
@@ -1614,29 +1639,27 @@
         let datesToCheck = [];
         let [y, m, d] = baseDateStr.split('-');
         let currD = new Date(y, m-1, d);
-        
+
         if (recurrence === 'none') {
             datesToCheck.push(baseDateStr);
         } else {
-            let limit = recurrence === 'weekly' ? 25 : 12; // проверяем на полгода вперед
+            let limit = recurrence === 'weekly' ? 25 : 12;
             for(let i=0; i<limit; i++) {
                 datesToCheck.push(getLocalDateStr(new Date(currD)));
                 currD.setDate(currD.getDate() + (recurrence === 'weekly' ? 7 : 14));
             }
         }
-        
+
         for (let checkDate of datesToCheck) {
             let dayConflicts = [];
-            
-            // 1. Проверяем обычное расписание вуза
+
             let daySched = cachedSchedule.filter(x => x.date === checkDate);
             for (let item of daySched) {
                 if (isTimeOverlap(timeRange, item.time_range)) {
                     dayConflicts.push(`парой "${item.lesson}"`);
                 }
             }
-            
-            // 2. Проверяем кастомные элементы
+
             let customSched = getCustomItemsForDate(checkDate);
             for (let item of customSched) {
                 if (item.custom_id == ignoreCustomId) continue;
@@ -1645,8 +1668,7 @@
                     dayConflicts.push(`${kind} "${item.lesson}"`);
                 }
             }
-            
-            // Анализируем количество конфликтов в конкретный день
+
             if (dayConflicts.length === 1) {
                 return { conflict: true, msg: `Внимание! На ${checkDate} обнаружено пересечение с ${dayConflicts[0]}.` };
             } else if (dayConflicts.length > 1) {
@@ -1656,29 +1678,26 @@
         return null;
     }
 
-    // --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ КРАСИВОГО ДИАЛОГА ---
     function askRecurrenceMode(actionTitle, targetDate) {
         return new Promise((resolve) => {
             document.getElementById('recurrenceActionTitle').textContent = actionTitle;
-            
+
             let btnSingle = document.getElementById('btnRecurrenceSingle');
             let btnAll = document.getElementById('btnRecurrenceAll');
-            
+
             btnSingle.textContent = `Только на этой неделе (${targetDate})`;
 
             let modalEl = document.getElementById('recurrenceActionModal');
             let modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
 
-            // Очистка старых событий с кнопок (путем клонирования)
             let newBtnSingle = btnSingle.cloneNode(true);
             btnSingle.parentNode.replaceChild(newBtnSingle, btnSingle);
-            
+
             let newBtnAll = btnAll.cloneNode(true);
             btnAll.parentNode.replaceChild(newBtnAll, btnAll);
 
             let resolved = false;
 
-            // Ждем завершения анимации закрытия перед тем как продолжить скрипт (защита от залипания фона)
             newBtnSingle.onclick = () => {
                 resolved = true;
                 modalEl.addEventListener('hidden.bs.modal', () => resolve("1"), { once: true });
@@ -1691,7 +1710,6 @@
                 modal.hide();
             };
 
-            // Если пользователь кликнул мимо окна
             modalEl.addEventListener('hidden.bs.modal', () => {
                 if (!resolved) resolve(null);
             }, { once: true });
@@ -1700,12 +1718,11 @@
         });
     }
 
-    // --- УПРАВЛЕНИЕ МОДАЛКОЙ И СОХРАНЕНИЕ ---
     function openCustomScheduleModal(dateStr, itemId = null) {
         document.getElementById('csTargetDate').value = dateStr;
         let modalTitle = document.getElementById('customScheduleModalTitle');
         let delBtn = document.getElementById('csDeleteBtn');
-        
+
         if (itemId) {
             let item = customScheduleItems.find(i => i.id === itemId);
             if (!item) return;
@@ -1713,11 +1730,11 @@
             document.getElementById('csBaseDate').value = item.base_date;
             modalTitle.textContent = 'Редактировать';
             delBtn.style.display = 'block';
-            
+
             let timeParts = item.time_range.split('-');
             let tStart = timeParts[0].trim();
             let tEnd = timeParts[1].trim();
-            
+
             document.getElementById('csTimeStart').value = tStart;
             document.getElementById('csTimeEnd').value = tEnd;
 
@@ -1725,7 +1742,6 @@
                 document.getElementById('csTypeEvent').checked = true;
             } else {
                 document.getElementById('csTypeClass').checked = true;
-                // Ищем подходящую пару для выпадающего списка
                 for (let num in classTimes) {
                     if (classTimes[num].start === tStart && classTimes[num].end === tEnd) {
                         document.getElementById('csClassNum').value = num;
@@ -1733,7 +1749,7 @@
                     }
                 }
             }
-            
+
             document.getElementById('csLesson').value = item.lesson;
             document.getElementById('csTypeName').value = item.type_name || '';
             document.getElementById('csTeacher').value = item.teacher || '';
@@ -1741,17 +1757,16 @@
             document.getElementById('csRecurrence').value = item.recurrence || 'none';
         } else {
             document.getElementById('csId').value = '';
-            document.getElementById('csBaseDate').value = dateStr; 
+            document.getElementById('csBaseDate').value = dateStr;
             modalTitle.textContent = 'Добавить в расписание';
             delBtn.style.display = 'none';
             document.getElementById('csTypeEvent').checked = true;
-            
-            // Подстановка времени по умолчанию
+
             let now = new Date();
             let h = now.getHours();
             document.getElementById('csTimeStart').value = String(h).padStart(2, '0') + ':00';
             document.getElementById('csTimeEnd').value = String((h + 1) % 24).padStart(2, '0') + ':00';
-            
+
             document.getElementById('csLesson').value = '';
             document.getElementById('csTypeName').value = '';
             document.getElementById('csTeacher').value = '';
@@ -1759,8 +1774,7 @@
             document.getElementById('csRecurrence').value = 'none';
         }
         toggleCsFields();
-        
-        // Правильное открытие без создания дубликатов
+
         let modalEl = document.getElementById('customScheduleModal');
         let modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
         modal.show();
@@ -1770,17 +1784,17 @@
         let group = document.getElementById('groupSelect').value.trim();
         let id = document.getElementById('csId').value;
         let targetDate = document.getElementById('csTargetDate').value;
-        
+
         let start = document.getElementById('csTimeStart').value;
         let end = document.getElementById('csTimeEnd').value;
-        
+
         if (start >= end) {
             alert("Ошибка: Начальное время должно быть строго раньше времени окончания!");
             return;
         }
-        
+
         let time_range = `${start} - ${end}`;
-        
+
         let payload = {
             group: group,
             base_date: document.getElementById('csBaseDate').value,
@@ -1793,32 +1807,32 @@
             recurrence: document.getElementById('csRecurrence').value,
             exceptions: '[]'
         };
-        
+
         if (!start || !end || !payload.lesson) return alert("Заполните время и название!");
-        
+
         let conflict = checkScheduleConflict(payload.base_date, payload.time_range, payload.recurrence, id);
         if (conflict && !confirm(conflict.msg + "\n\nВсё равно сохранить?")) return;
-        
+
         if (id) {
             let originalItem = customScheduleItems.find(i => i.id == id);
             if (originalItem && originalItem.recurrence !== 'none') {
                 let mode = await askRecurrenceMode("Изменить событие", targetDate);
-                
+
                 if (mode === "1") {
                     let ex = JSON.parse(originalItem.exceptions || '[]');
                     if (!ex.includes(targetDate)) ex.push(targetDate);
                     await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...originalItem, exceptions: JSON.stringify(ex)}) });
-                    
+
                     payload.base_date = targetDate;
                     payload.recurrence = 'none';
                     await fetch(`/api/custom_schedule`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-                    
+
                     let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
                     if (mainModal) mainModal.hide();
                     await refreshCustomSchedule();
                     return;
                 } else if (mode !== "2") {
-                    return; // Отмена
+                    return;
                 }
             }
             payload.exceptions = originalItem ? originalItem.exceptions : '[]';
@@ -1826,7 +1840,7 @@
         } else {
             await fetch(`/api/custom_schedule`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
         }
-        
+
         let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
         if (mainModal) mainModal.hide();
         await refreshCustomSchedule();
@@ -1836,28 +1850,28 @@
         let id = document.getElementById('csId').value;
         let targetDate = document.getElementById('csTargetDate').value;
         let originalItem = customScheduleItems.find(i => i.id == id);
-        
+
         if (originalItem && originalItem.recurrence !== 'none') {
             let mode = await askRecurrenceMode("Удалить событие", targetDate);
-            
+
             if (mode === "1") {
                 let ex = JSON.parse(originalItem.exceptions || '[]');
                 if (!ex.includes(targetDate)) ex.push(targetDate);
                 await fetch(`/api/custom_schedule/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...originalItem, exceptions: JSON.stringify(ex)}) });
-                
+
                 let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
                 if (mainModal) mainModal.hide();
                 await refreshCustomSchedule();
                 return;
             } else if (mode !== "2") {
-                return; // Отмена
+                return;
             }
         } else {
             if (!confirm('Удалить этот элемент?')) return;
         }
-        
+
         await fetch(`/api/custom_schedule/${id}`, { method: 'DELETE' });
-        
+
         let mainModal = bootstrap.Modal.getInstance(document.getElementById('customScheduleModal'));
         if (mainModal) mainModal.hide();
         await refreshCustomSchedule();
@@ -1872,7 +1886,6 @@
 
     // --- ОТРИСОВКА КАЛЕНДАРЯ И ЗАДАЧ ---
     async function renderCalendar() {
-        // Запоминаем, какие дни сейчас открыты (развернуты)
         let openDays = new Set();
         document.querySelectorAll('div[id^="schedule-details-"]').forEach(el => {
             if (el.style.display !== "none") {
@@ -1881,11 +1894,11 @@
         });
 
         updateWeekDropdown();
-        
+
         const cal = document.getElementById("calendar");
         if(!cal) return;
         cal.innerHTML = "";
-        
+
         let startStr = getLocalDateStr(currentBaseDate);
         let endD = new Date(currentBaseDate);
         endD.setDate(endD.getDate() + 6);
@@ -1897,63 +1910,59 @@
             d.setDate(d.getDate() + i);
             let dateStr = getLocalDateStr(d);
             let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
-            
+
             let isTodayClass = (dateStr === realTodayStr) ? "day-today" : "";
             let daySchedule = cachedSchedule.filter(item => item.date === dateStr);
-            // Подтягиваем пользовательские элементы и объединяем
             let customItems = getCustomItemsForDate(dateStr);
             daySchedule = daySchedule.concat(customItems);
-            
-            // Сортируем по часам и минутам
+
             daySchedule.sort((a, b) => {
                 let aTime = a.time_range ? a.time_range.split(' - ')[0] : "99:99";
                 let bTime = b.time_range ? b.time_range.split(' - ')[0] : "99:99";
                 return aTime.localeCompare(bTime);
             });
-            
+
             let scheduleHtml = "";
             if(daySchedule.length > 0) {
                 let startTime = fixTime(daySchedule[0].time_range.split(' - ')[0]);
                 let endTime = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
-                
-                // Проверяем, был ли этот день открыт до перерисовки
+
                 let isExpanded = openDays.has(dateStr);
                 let detailsStyle = isExpanded ? 'display: block;' : 'display: none;';
                 let arrowIcon = isExpanded ? '▲' : '▼';
-                
+
                 scheduleHtml += `
                     <div class="schedule-summary shadow-sm" onclick="toggleSchedule('${dateStr}')">
                         🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">${arrowIcon}</span>
                     </div>
                     <div id="schedule-details-${dateStr}" style="${detailsStyle}">
                 `;
-                
+
                 daySchedule.forEach(item => {
                     let origLesson = item.lesson;
-                    // Для кастомных пар не используем настройки (оно настраивается напрямую при редактировании)
                     let subjectKey = item.is_custom ? origLesson : `${item.lesson} (${item.type_name})`;
                     let safeSubjectKey = subjectKey.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
-                    
+
                     let displayLesson = origLesson;
                     let lessonLink = "";
                     let displayTeacher = item.teacher || "";
                     let displayLocation = item.location || "";
-                    
+
                     if (!item.is_custom && cachedSubjectSettings[subjectKey]) {
                         if (cachedSubjectSettings[subjectKey].custom_name) displayLesson = cachedSubjectSettings[subjectKey].custom_name;
                         if (cachedSubjectSettings[subjectKey].link) lessonLink = cachedSubjectSettings[subjectKey].link;
                         if (cachedSubjectSettings[subjectKey].teacher) displayTeacher = cachedSubjectSettings[subjectKey].teacher;
                         if (cachedSubjectSettings[subjectKey].location) displayLocation = cachedSubjectSettings[subjectKey].location;
                     }
-                    
-                    let lessonHtml = lessonLink 
+
+                    let lessonHtml = lessonLink
                         ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: #4f46e5;" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
                         : `<span title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</span>`;
-                    
+
                     if (!item.is_custom) {
                         lessonHtml += ` <span style="cursor:pointer; font-size: 0.9em; opacity: 0.4;" onclick="openSubjectSettings('${safeSubjectKey}')" title="Настроить предмет">⚙️</span>`;
                     }
-                    
+
                     let typeBadge = '';
                     if (item.is_custom && item.is_event) {
                          typeBadge = `<span class="badge bg-success ms-2" style="font-size: 0.7em;">Событие</span>`;
@@ -1961,13 +1970,11 @@
                          typeBadge = `<span class="badge bg-secondary ms-2" style="font-size: 0.7em;">${item.type_name}</span>`;
                     }
 
-                    // Кнопка редактирования только для кастомных
                     let editCustomHtml = item.is_custom ? `<span style="cursor:pointer; font-size: 0.9em; margin-left: 8px;" onclick="openCustomScheduleModal('${item.date}', ${item.custom_id})" title="Редактировать">✏️</span>` : '';
 
                     let teacherInfo = (displayTeacher && showTeacher) ? `<span class="text-muted" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(displayTeacher)}</span>` : '';
                     let locInfo = (displayLocation && showLocation) ? `<span class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(displayLocation)}</span>` : '';
 
-                    // Уникальные цвета левых рамок (События зеленым, кастомные пары фиолетовым)
                     let customStyle = item.is_custom ? (item.is_event ? 'border-left: 3px solid #10b981;' : 'border-left: 3px solid #8b5cf6;') : 'border-left: 3px solid #6366f1;';
 
                     scheduleHtml += `
@@ -1987,35 +1994,33 @@
             cal.innerHTML += `
                 <div class="day-col ${isTodayClass}" id="day-col-${dateStr}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
                     <div class="day-header">
-                        <button class="day-nav-arrow" style="display: none;" onclick="navigateExpandedDay('${dateStr}', -1)">&#10094;</button>
                         <span>${displayDate}</span>
-                        <button class="day-nav-arrow" style="display: none;" onclick="navigateExpandedDay('${dateStr}', 1)">&#10095;</button>
                     </div>
-                    
+
                     <div class="day-schedule-wrap">
                         <div class="mb-2">${scheduleHtml}</div>
                     </div>
-                    
+
                     <div class="day-tasks-wrap d-flex flex-column" style="flex-grow: 1;">
                         <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
-                        
+
                         <div id="expand-btn-wrap-${dateStr}" style="display: none; text-align: center;">
                             <span class="add-task-btn mt-1" style="color: #f59e0b;" onclick="toggleExpandDay('${dateStr}')">Развернуть</span>
                         </div>
-                        
+
                         <div class="text-center mt-2 d-flex justify-content-center gap-2">
-                            <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm" 
-                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
+                            <button class="btn btn-outline-primary btn-sm rounded-circle fw-bold shadow-sm"
+                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;"
                                     onclick="toggleTaskInput('${dateStr}')" title="Добавить заметку">+</button>
-                            <button class="btn btn-outline-success btn-sm rounded-circle fw-bold shadow-sm" 
-                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;" 
+                            <button class="btn btn-outline-success btn-sm rounded-circle fw-bold shadow-sm"
+                                    style="width: 28px; height: 28px; line-height: 12px; padding: 0;"
                                     onclick="openCustomScheduleModal('${dateStr}')" title="Добавить в расписание">+</button>
                         </div>
-                        
+
                         <div id="task-input-wrap-${dateStr}" style="display: none;" class="mt-2">
-                            <textarea id="task-input-${dateStr}" class="form-control form-control-sm" 
+                            <textarea id="task-input-${dateStr}" class="form-control form-control-sm"
                                    placeholder="Текст заметки" rows="2" style="resize: none;"
-                                   onkeydown="handleNewTask(event, '${dateStr}')" 
+                                   onkeydown="handleNewTask(event, '${dateStr}')"
                                    onblur="handleTaskBlur('${dateStr}')"></textarea>
                         </div>
                     </div>
@@ -2031,25 +2036,24 @@
 
         renderFriendsCalendar();
 
-        // Восстанавливаем развернутый режим при перерисовке или нажатии "Сегодня"
         if (expandedDayDateStr) {
             let grid = document.querySelector('.calendar-grid');
             let col = document.getElementById(`day-col-${expandedDayDateStr}`);
             if (col) {
                 col.classList.add('fullscreen-day');
                 grid.classList.add('has-fullscreen');
-                
+
                 let btn = document.querySelector(`#expand-btn-wrap-${expandedDayDateStr} span`);
                 if (btn) btn.textContent = "Свернуть";
-                
+
                 let details = document.getElementById(`schedule-details-${expandedDayDateStr}`);
                 let arrow   = document.getElementById(`arrow-${expandedDayDateStr}`);
                 if (details) details.style.display = "block";
                 if (arrow) arrow.textContent = "▲";
-                
+
                 rebalanceDayText(expandedDayDateStr);
             } else {
-                expandedDayDateStr = null; // Если день в другой неделе, сбрасываем (защита от ошибок)
+                expandedDayDateStr = null;
             }
         }
     }
@@ -2077,7 +2081,6 @@
         let col  = document.getElementById(`day-col-${dateStr}`);
         let btn  = document.querySelector(`#expand-btn-wrap-${dateStr} span`);
 
-        // Считаем отступ = высота sticky-шапки + запас
         let headerEl = document.querySelector('.controls-header');
         let headerOffset = headerEl ? headerEl.offsetHeight + 25 : 90;
 
@@ -2088,7 +2091,6 @@
         }
 
         if (col.classList.contains('fullscreen-day')) {
-            // ===== СВОРАЧИВАЕМ =====
             col.classList.remove('fullscreen-day');
             grid.classList.remove('has-fullscreen');
             btn.textContent = "Развернуть";
@@ -2100,19 +2102,14 @@
             if (details) details.style.display = "none";
             if (arrow)   arrow.textContent = "▼";
 
-            // Скроллинг вниз при выходе убран
-
-            // Вызываем пересчет, чтобы убрать кнопку "Развернуть", если заметок не осталось
             rebalanceDayText(dateStr);
         } else {
-            // ===== РАЗВОРАЧИВАЕМ =====
             col.classList.add('fullscreen-day');
             grid.classList.add('has-fullscreen');
             btn.textContent = "Свернуть";
 
             expandedDayDateStr = dateStr;
 
-            // Автоматически раскрываем расписание пар
             let details = document.getElementById(`schedule-details-${dateStr}`);
             let arrow   = document.getElementById(`arrow-${dateStr}`);
             if (details) {
@@ -2123,51 +2120,7 @@
             }
             if (arrow) arrow.textContent = "▲";
 
-            // Скроллим так, чтобы день оказался ПОД шапкой, а не за ней
             setTimeout(() => scrollToCol(true), 60);
-        }
-    }
-
-    function navigateExpandedDay(dateStr, offset) {
-        let d = new Date(dateStr);
-        d.setDate(d.getDate() + offset);
-        let newDateStr = getLocalDateStr(d);
-        
-        expandedDayDateStr = newDateStr;
-        
-        // Проверяем, находится ли новый день в текущей отображаемой неделе
-        let startStr = getLocalDateStr(currentBaseDate);
-        let endD = new Date(currentBaseDate);
-        endD.setDate(endD.getDate() + 6);
-        let endStr = getLocalDateStr(endD);
-        
-        if (newDateStr >= startStr && newDateStr <= endStr) {
-            // Переключаем дни без полной перезагрузки недели
-            let currentCol = document.getElementById(`day-col-${dateStr}`);
-            if (currentCol) {
-                currentCol.classList.remove('fullscreen-day');
-                let btn = document.querySelector(`#expand-btn-wrap-${dateStr} span`);
-                if(btn) btn.textContent = "Развернуть";
-                let details = document.getElementById(`schedule-details-${dateStr}`);
-                if (details) details.style.display = "none";
-                rebalanceDayText(dateStr);
-            }
-            
-            let newCol = document.getElementById(`day-col-${newDateStr}`);
-            if (newCol) {
-                newCol.classList.add('fullscreen-day');
-                let btn = document.querySelector(`#expand-btn-wrap-${newDateStr} span`);
-                if(btn) btn.textContent = "Свернуть";
-                let details = document.getElementById(`schedule-details-${newDateStr}`);
-                if (details) details.style.display = "block";
-                rebalanceDayText(newDateStr);
-            }
-        } else {
-            // Если переходим на другую неделю, обновляем базу и вызываем рендер
-            currentBaseDate = new Date(d);
-            // Устанавливаем currentBaseDate на понедельник нужной недели
-            currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
-            renderCalendar();
         }
     }
 
@@ -2178,37 +2131,30 @@
         let cards = Array.from(container.querySelectorAll('.task-card'));
         let wrap  = document.getElementById(`expand-btn-wrap-${dateStr}`);
         let col   = document.getElementById(`day-col-${dateStr}`);
-        
-        // Проверяем, развернут ли день прямо сейчас
+
         let isExpanded = col && col.classList.contains('fullscreen-day');
 
         if (cards.length === 0) {
-            // Если заметок нет, оставляем кнопку только если мы в развернутом режиме (кнопка "Свернуть")
             if (wrap) wrap.style.display = isExpanded ? 'block' : 'none';
             return;
         }
 
-        // Собираем длины всех заметок
         let lengths = cards.map(card => {
             let fullEl = card.querySelector('.task-text-full');
             return fullEl ? fullEl.textContent.length : 0;
         });
         let totalLen = lengths.reduce((s, n) => s + n, 0);
 
-        // === Условие показа кнопки "Развернуть" / "Свернуть" ===
         const SHOW_BTN_THRESHOLD = 50;
-        // Показываем кнопку, если текста много ИЛИ если режим уже развернут
         let showButton = totalLen > SHOW_BTN_THRESHOLD || isExpanded;
         if (wrap) wrap.style.display = showButton ? 'block' : 'none';
 
-        // === Условие начала сокращения ===
-        const SINGLE_NOTE_LIMIT = 50;   // для одной заметки
-        const MULTI_TOTAL_LIMIT = 80;   // для 2+ заметок
+        const SINGLE_NOTE_LIMIT = 50;
+        const MULTI_TOTAL_LIMIT = 80;
         let shouldTrim = cards.length === 1
             ? lengths[0] > SINGLE_NOTE_LIMIT
             : totalLen > MULTI_TOTAL_LIMIT;
 
-        // === Без сокращения — показываем всё ===
         if (!shouldTrim) {
             cards.forEach(card => {
                 let shortEl = card.querySelector('.task-text-short');
@@ -2221,7 +2167,6 @@
             return;
         }
 
-        // === Одна заметка — режем по 50 ===
         if (cards.length === 1) {
             let card    = cards[0];
             let shortEl = card.querySelector('.task-text-short');
@@ -2234,10 +2179,9 @@
             return;
         }
 
-        // === 2+ заметок — 80 символов поровну между всеми ===
         const TOTAL_BUDGET = MULTI_TOTAL_LIMIT;
-        let share     = Math.floor(TOTAL_BUDGET / cards.length); // базовый кусок каждому
-        let remainder = TOTAL_BUDGET - share * cards.length;     // хвост от деления (0..N-1)
+        let share     = Math.floor(TOTAL_BUDGET / cards.length);
+        let remainder = TOTAL_BUDGET - share * cards.length;
 
         cards.forEach((card, idx) => {
             let shortEl = card.querySelector('.task-text-short');
@@ -2245,7 +2189,6 @@
             if (!shortEl || !fullEl) return;
 
             let full  = fullEl.textContent;
-            // Раздаём остаток по одной лишней букве первым заметкам — так итог ровно 80
             let limit = share + (idx < remainder ? 1 : 0);
 
             if (full.length <= limit) {
@@ -2259,7 +2202,7 @@
     }
 
     function handleNewTask(e, dateStr) { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.blur(); } }
-    
+
     function handleTaskBlur(dateStr) {
         setTimeout(() => {
             let input = document.getElementById(`task-input-${dateStr}`);
@@ -2286,26 +2229,23 @@
     function renderTask(task) {
         const container = document.getElementById(`tasks-${task.date}`);
         if(!container) return;
-        
+
         let existing = document.getElementById(`task-${task.id}`);
         if(existing) existing.remove();
-        
+
         let div = document.createElement('div');
         div.className = `task-card status-${task.status}`;
         div.id = `task-${task.id}`;
         div.draggable = true;
-        
+
         let spanText = document.createElement('div');
         spanText.className = 'task-text';
-        
-        // Экранируем спецсимволы
+
         let safeText = task.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        
-        // ВАЖНО: короткий текст теперь пересчитывается динамически в rebalanceDayText().
-        // Здесь просто кладём полный текст в оба span'а.
+
         spanText.innerHTML = `<span class="task-text-short">${safeText}</span><span class="task-text-full">${safeText}</span>`;
         spanText.onclick = () => { if(task.status !== 'completed') toggleColor(task.id, task.status); };
-        
+
         let actions = document.createElement('div');
         actions.className = 'task-actions';
 
@@ -2323,7 +2263,7 @@
 
         let btnDel = document.createElement('a');
         btnDel.className = 'task-btn';
-        if (task.status === 'completed') { div.classList.add('task-completed'); btnDel.innerHTML = '🗑️'; } 
+        if (task.status === 'completed') { div.classList.add('task-completed'); btnDel.innerHTML = '🗑️'; }
         else { btnDel.innerHTML = '×'; btnDel.style.fontSize = '1.3em'; }
         btnDel.onclick = () => handleTaskDeleteClick(task);
 
@@ -2334,12 +2274,12 @@
         div.appendChild(actions);
         div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
         container.appendChild(div);
-        
-        rebalanceDayText(task.date); // Пересчитываем «бюджет» дня
+
+        rebalanceDayText(task.date);
     }
 
     function updateTaskRequest(task) {
-        renderTask(task); // Мгновенно обновляем UI (Оптимистичный рендеринг)
+        renderTask(task);
         fetch(`/api/tasks/${task.id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: task.date, text: task.text, status: task.status}) });
     }
 
@@ -2357,10 +2297,10 @@
     function toggleColor(id, currentStatus) {
         let taskElement = document.getElementById(`task-${id}`);
         let newStatus = currentStatus === 'green' ? 'orange' : (currentStatus === 'orange' ? 'red' : 'green');
-        let fullEl = taskElement.querySelector('.task-text-full');   // ← читаем полный текст
+        let fullEl = taskElement.querySelector('.task-text-full');
         let text = fullEl ? fullEl.textContent : '';
         let dateId = taskElement.parentElement.id.replace('tasks-', '');
-        
+
         let task = {id, date: dateId, text, status: newStatus};
         updateTaskRequest(task);
     }
@@ -2370,16 +2310,15 @@
         e.preventDefault();
         let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
         if(taskData.date === newDate) return;
-        
-        let oldDate = taskData.date; // Запоминаем откуда утащили
+
+        let oldDate = taskData.date;
         taskData.date = newDate;
-        updateTaskRequest(taskData); 
-        
-        // Запускаем пересчет старой колонки с небольшой задержкой (чтобы карточка успела исчезнуть)
-        setTimeout(() => rebalanceDayText(oldDate), 50); 
+        updateTaskRequest(taskData);
+
+        setTimeout(() => rebalanceDayText(oldDate), 50);
     }
 
-    // --- НАСТРОЙКИ ПРЕДМЕТОВ (Кастомные названия, ссылки, ФИО, аудитория) ---
+    // --- НАСТРОЙКИ ПРЕДМЕТОВ ---
     async function fetchSubjectSettings() {
         try {
             let res = await fetch('/api/subjects');
@@ -2393,7 +2332,7 @@
         let decodedLesson = origLessonSafe.replace(/&#39;/g, "'").replace(/&quot;/g, '"');
         document.getElementById('origSubjectName').value = decodedLesson;
         document.getElementById('subjectOrigNameDisplay').textContent = decodedLesson;
-        
+
         if (cachedSubjectSettings[decodedLesson]) {
             document.getElementById('subjectCustomName').value = cachedSubjectSettings[decodedLesson].custom_name || "";
             document.getElementById('subjectLink').value = cachedSubjectSettings[decodedLesson].link || "";
@@ -2405,7 +2344,7 @@
             document.getElementById('subjectTeacher').value = "";
             document.getElementById('subjectLocation').value = "";
         }
-        
+
         new bootstrap.Modal(document.getElementById('subjectSettingsModal')).show();
     }
 
@@ -2415,19 +2354,19 @@
         let link = document.getElementById('subjectLink').value.trim();
         let teacher = document.getElementById('subjectTeacher').value.trim();
         let location = document.getElementById('subjectLocation').value.trim();
-        
+
         await fetch('/api/subjects', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({subject: orig, custom_name: custom, link: link, teacher: teacher, location: location})
         });
-        
+
         let modalEl = document.getElementById('subjectSettingsModal');
         let modal = bootstrap.Modal.getInstance(modalEl);
         if(modal) modal.hide();
-        
+
         await fetchSubjectSettings();
-        renderCalendar(); // Обновляем календарь мгновенно
+        renderCalendar();
     }
 
     // --- ЛОГИКА ДРУЗЕЙ ---
@@ -2469,7 +2408,7 @@
         let ids = new Set(friendsList.map(f => f.id));
         visibleFriends.forEach(id => { if (!ids.has(id)) visibleFriends.delete(id); });
         saveVisibleFriends();
-        
+
         renderFriendDropdown();
         await fetchAllFriendsSchedules();
         renderFriendsCalendar();
@@ -2479,11 +2418,10 @@
     function renderFriendDropdown() {
         let dropdownMenu = document.getElementById('friendTogglesDropdown');
         dropdownMenu.innerHTML = '';
-        
-        // Кнопка скрыть всех (всегда видна, если есть кого скрывать)
+
         dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider m-0"></li>`;
-        
-        let groupsMap = { "": [] }; 
+
+        let groupsMap = { "": [] };
         customCategories.forEach(c => { if (c) groupsMap[c] = []; });
 
         friendsList.forEach(f => {
@@ -2501,21 +2439,18 @@
         let hasAnyGroup = false;
 
         for (let cat in groupsMap) {
-            // Если группа пустая и это "Без папки", пропускаем её
             if (cat === "" && groupsMap[cat].length === 0) continue;
             hasAnyGroup = true;
 
             let isUnassigned = cat === "";
             let catName = isUnassigned ? "Без папки" : cat;
             let catIcon = isUnassigned ? "👤" : "📁";
-            
+
             let allVisible = groupsMap[cat].length > 0 && groupsMap[cat].every(f => visibleFriends.has(f.id));
             let catChecked = allVisible ? 'checked' : '';
-            
-            // Кнопка редактирования только для созданных папок
+
             let editBtnHtml = !isUnassigned ? `<button class="btn btn-sm btn-link text-secondary p-0 ms-2 text-decoration-none" onclick="editCustomCategory('${escapeAttr(cat)}', event)" title="Переименовать папку">✏️</button>` : '';
-            
-            // Шапка папки
+
             dropdownMenu.innerHTML += `
                 <li ondragover="allowDrop(event)" ondrop="handleCategoryDrop(event, '${escapeAttr(cat)}')">
                     <div class="dropdown-item bg-light d-flex justify-content-between align-items-center border-bottom pb-1 pt-1" onclick="toggleFriendGroup('${escapeAttr(cat)}'); event.stopPropagation();">
@@ -2529,8 +2464,7 @@
                     </div>
                 </li>
             `;
-            
-            // Список друзей внутри папки
+
             groupsMap[cat].forEach(f => {
                 let isChecked = visibleFriends.has(f.id) ? 'checked' : '';
                 dropdownMenu.innerHTML += `
@@ -2552,7 +2486,6 @@
             dropdownMenu.innerHTML += '<li><span class="dropdown-item text-muted small text-center d-block py-2">Папок и друзей пока нет</span></li>';
         }
 
-        // Поле ввода всегда присутствует снизу
         dropdownMenu.innerHTML += `
             <li><hr class="dropdown-divider m-0 mt-2"></li>
             <li class="p-2 pb-1">
@@ -2564,14 +2497,12 @@
         `;
     }
 
-    // Редактирование названия папки
     async function editCustomCategory(oldName, e) {
         e.stopPropagation();
         let newName = prompt("Введите новое название для папки:", oldName);
         if (!newName || newName.trim() === '' || newName === oldName) return;
         newName = newName.trim();
-        
-        // Заменяем имя в списке папок
+
         let idx = customCategories.indexOf(oldName);
         if (idx !== -1) {
             customCategories[idx] = newName;
@@ -2580,10 +2511,9 @@
             customCategories.push(newName);
         }
 
-        // Обновляем папку у всех друзей
         let friendsToUpdate = friendsList.filter(f => (f.category || '') === oldName);
         for (let f of friendsToUpdate) {
-            f.category = newName; // Локальное обновление
+            f.category = newName;
             await fetch(`/api/friends/${f.id}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
@@ -2602,7 +2532,7 @@
     function toggleFriendGroup(cat) {
         let groupFriends = friendsList.filter(f => (f.category || '') === cat);
         let allVisible = groupFriends.length > 0 && groupFriends.every(f => visibleFriends.has(f.id));
-        
+
         groupFriends.forEach(f => {
             if (allVisible) {
                 visibleFriends.delete(f.id);
@@ -2611,15 +2541,13 @@
             }
         });
         saveVisibleFriends();
-        renderFriendDropdown(); 
+        renderFriendDropdown();
         renderFriendsCalendar();
     }
 
-    // --- ФУНКЦИИ DRAG-AND-DROP И СОЗДАНИЯ ПАПКИ В МЕНЮ ---
     function handleDropdownDragStart(e, friendId) {
         draggingDropdownFriendId = friendId;
         e.dataTransfer.effectAllowed = 'move';
-        // Устанавливаем небольшую задержку, чтобы Bootstrap меню не закрывалось при начале перетаскивания
         setTimeout(() => { document.getElementById('friendTogglesDropdown').classList.add('show'); }, 10);
     }
 
@@ -2627,12 +2555,11 @@
         e.preventDefault();
         e.stopPropagation();
         if (!draggingDropdownFriendId) return;
-        
+
         let friend = friendsList.find(f => f.id === draggingDropdownFriendId);
         if (friend && (friend.category || "") !== newCategory) {
-            friend.category = newCategory; // Локальное обновление для мгновенной отрисовки
-            
-            // Фоновое обновление на сервере
+            friend.category = newCategory;
+
             fetch(`/api/friends/${friend.id}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
@@ -2666,7 +2593,7 @@
         renderFriendDropdown();
         renderFriendsCalendar();
     }
-    
+
     function hideAllFriends(e) {
         if(e) e.preventDefault();
         visibleFriends.clear();
@@ -2676,48 +2603,43 @@
     }
 
     async function fetchAllFriendsSchedules() {
-        // Запускаем запросы параллельно через map
         let promises = friendsList.map(async (friend) => {
             if (!friendsSchedules[friend.id]) {
                 try {
                     let res = await fetch(`/api/schedule_all?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
                     let data = await res.json();
                     friendsSchedules[friend.id] = applyTimeFix(data);
-                    
-                    // Перерисовываем блок друга мгновенно, как только его данные пришли
+
                     if (visibleFriends.has(friend.id)) {
                         renderFriendsCalendar();
                     }
-                } catch (e) { 
-                    friendsSchedules[friend.id] = []; 
+                } catch (e) {
+                    friendsSchedules[friend.id] = [];
                 }
             }
         });
-        
-        // Ждем завершения всех запросов
+
         await Promise.all(promises);
-        
-        // Запускаем фоновую синхронизацию для всех друзей
+
         syncFriendsSchedules();
     }
 
     async function syncFriendsSchedules() {
-        // Синхронизируем друзей по очереди, чтобы не забивать пул подключений браузера
         for (let friend of friendsList) {
             try {
                 let res = await fetch(`/api/schedule_sync?group=${encodeURIComponent(friend.group)}&subgroup=${friend.subgroup}`);
                 let data = await res.json();
                 let newData = applyTimeFix(data);
-                
+
                 if (Array.isArray(newData) && newData.length > 0) {
                     if (friendsSchedules[friend.id] && friendsSchedules[friend.id].length > 0 && newData.length < friendsSchedules[friend.id].length * 0.9) {
-                        continue; 
+                        continue;
                     }
-                    
+
                     if (isScheduleDifferent(newData, friendsSchedules[friend.id])) {
                         friendsSchedules[friend.id] = newData;
                         if (visibleFriends.has(friend.id)) {
-                            renderFriendsCalendar(); 
+                            renderFriendsCalendar();
                             showUpdateNotification(`Расписание друга обновилось: ${friend.name}`);
                         }
                     }
@@ -2726,8 +2648,6 @@
         }
     }
 
-    // --- ЗАПОЛНЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ПАПОК ---
-    // Заполнение выпадающего списка папок
     function populateCategorySelect(selectedCategory) {
         let select = document.getElementById('friendCategory');
         select.innerHTML = '<option value="">Без папки</option>';
@@ -2735,7 +2655,7 @@
             select.innerHTML += `<option value="${escapeAttr(cat)}">${escapeHtml(cat)}</option>`;
         });
         select.innerHTML += '<option value="_new" class="fw-bold text-primary">➕ Создать новую...</option>';
-        
+
         if (selectedCategory && customCategories.includes(selectedCategory)) {
             select.value = selectedCategory;
         } else {
@@ -2743,7 +2663,6 @@
         }
     }
 
-    // Обработка выбора "Создать новую..."
     function handleCategorySelect(select) {
         if (select.value === '_new') {
             let newCat = prompt("Введите название новой папки:");
@@ -2752,23 +2671,23 @@
                 if (!customCategories.includes(newCat)) {
                     customCategories.push(newCat);
                     localStorage.setItem('customCategories', JSON.stringify(customCategories));
-                    renderFriendDropdown(); // Обновляем меню на фоне
+                    renderFriendDropdown();
                 }
                 populateCategorySelect(newCat);
             } else {
-                select.value = ""; // Сбрасываем на "Без папки", если отменено
+                select.value = "";
             }
         }
     }
 
-    function showAddFriendModal() { 
+    function showAddFriendModal() {
         editingFriendId = null;
         document.querySelector('#addFriendModal .modal-title').textContent = 'Добавить друга';
         document.getElementById('friendName').value = '';
         document.getElementById('friendGroup').value = '';
         document.getElementById('friendSubgroup').value = '0';
-        populateCategorySelect(''); // Изначально ставим "Без папки"
-        new bootstrap.Modal(document.getElementById('addFriendModal')).show(); 
+        populateCategorySelect('');
+        new bootstrap.Modal(document.getElementById('addFriendModal')).show();
     }
 
     function editFriend(id, name, group, subgroup, category) {
@@ -2777,7 +2696,7 @@
         document.getElementById('friendName').value = name;
         document.getElementById('friendGroup').value = group;
         document.getElementById('friendSubgroup').value = subgroup;
-        populateCategorySelect(category); // Подставляем текущую папку
+        populateCategorySelect(category);
         new bootstrap.Modal(document.getElementById('addFriendModal')).show();
     }
 
@@ -2786,15 +2705,14 @@
         let groupInput = document.getElementById('friendGroup');
         let subgroupInput = document.getElementById('friendSubgroup');
         let categoryInput = document.getElementById('friendCategory');
-        
+
         let name = nameInput.value.trim();
         let group = groupInput.value.trim();
         let subgroup = subgroupInput.value;
-        let category = categoryInput.value === '_new' ? '' : categoryInput.value; // Защита от системного значения
-        
+        let category = categoryInput.value === '_new' ? '' : categoryInput.value;
+
         if (!name || !group) return alert("Введите имя и группу");
 
-        // Проверка: не та же группа+подгруппа, что у самого пользователя
         let myGroup    = (document.getElementById('groupSelect').value || '').trim();
         let mySubgroup = String(document.getElementById('subgroupSelect').value || '0');
         let sameGroup    = myGroup && group.toLowerCase() === myGroup.toLowerCase();
@@ -2803,8 +2721,8 @@
         if (sameGroup && sameSubgroup) {
             return alert("Друг в той же группе, что и вы");
         }
-        
-        await ensureGroupsLoaded(); 
+
+        await ensureGroupsLoaded();
         if (validGroups.size > 0 && !validGroups.has(group.toUpperCase())) {
             let add = confirm(`Группа «${group}» не найдена в справочнике.\n\nДобавить её в вашу базу?`);
             if (!add) return;
@@ -2820,16 +2738,16 @@
         }
 
         if (editingFriendId) {
-            await fetch(`/api/friends/${editingFriendId}`, { 
-                method: 'PUT', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({name, group, subgroup, category}) 
+            await fetch(`/api/friends/${editingFriendId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, group, subgroup, category})
             });
         } else {
-            let res = await fetch('/api/friends', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({name, group, subgroup, category}) 
+            let res = await fetch('/api/friends', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, group, subgroup, category})
             });
             let data = await res.json();
             if (data.id) {
@@ -2849,11 +2767,11 @@
 
     async function deleteFriend(id) {
         if (!confirm("Вы уверены, что хотите удалить этого друга?")) return;
-        
+
         try {
             await fetch(`/api/friends/${id}`, { method: 'DELETE' });
-            visibleFriends.delete(id); // Скрываем из видимых, чтобы при ререндере он исчез
-            saveVisibleFriends(); // Сохраняем актуальный список
+            visibleFriends.delete(id);
+            saveVisibleFriends();
             await fetchFriends();
         } catch (e) { console.error("Ошибка при удалении друга", e); }
     }
@@ -2862,93 +2780,103 @@
         let container = document.getElementById("friendsCalendarsContainer");
         if (!container) return;
         container.innerHTML = "";
-        
-        // Если список друзей пуст — ничего не рисуем
+
+        // === STICKY-СТРЕЛКИ ДЛЯ СПИСКА ДРУЗЕЙ ===
+        let btnPrev = document.getElementById("friendsNavPrev");
+        let btnNext = document.getElementById("friendsNavNext");
+        if (visibleFriends.size >= 2) {
+            if (btnPrev) btnPrev.classList.add('show-friends-nav');
+            if (btnNext) btnNext.classList.add('show-friends-nav');
+        } else {
+            if (btnPrev) btnPrev.classList.remove('show-friends-nav');
+            if (btnNext) btnNext.classList.remove('show-friends-nav');
+        }
+
         if (!friendsList || friendsList.length === 0) return;
-        
+
         friendsList.forEach(friend => {
             if (!visibleFriends.has(friend.id)) return;
-            
+
             let friendSched = friendsSchedules[friend.id] || [];
             let wrapper = document.createElement('div');
             wrapper.className = "friend-wrapper bg-white rounded shadow-sm px-2 pb-2 pt-1";
             wrapper.dataset.friendId = friend.id;
             wrapper.draggable = true;
-            
+
             wrapper.addEventListener('dragstart', (e) => {
                 draggingFriendId = friend.id;
                 wrapper.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 try { e.dataTransfer.setData('text/plain', 'friend:' + friend.id); } catch(err) {}
             });
-            
+
             wrapper.addEventListener('dragend', () => {
                 wrapper.classList.remove('dragging');
                 document.querySelectorAll('.friend-wrapper').forEach(w => w.classList.remove('drag-over'));
                 draggingFriendId = null;
             });
-            
+
             wrapper.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 if (draggingFriendId !== null && draggingFriendId !== friend.id) {
                     wrapper.classList.add('drag-over');
                 }
             });
-            
+
             wrapper.addEventListener('dragleave', () => {
                 wrapper.classList.remove('drag-over');
             });
-            
+
             wrapper.addEventListener('drop', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 wrapper.classList.remove('drag-over');
                 if (draggingFriendId === null || draggingFriendId === friend.id) return;
-                
+
                 let fromIdx = friendsList.findIndex(f => f.id === draggingFriendId);
                 let toIdx = friendsList.findIndex(f => f.id === friend.id);
                 if (fromIdx === -1 || toIdx === -1) return;
-                
+
                 let [moved] = friendsList.splice(fromIdx, 1);
                 friendsList.splice(toIdx, 0, moved);
                 saveFriendsOrder();
                 renderFriendsCalendar();
             });
-            
+
             let header = document.createElement('div');
             header.className = "fw-bold text-primary mb-2 ps-1 pt-1 friend-header-row d-flex align-items-center";
             header.innerHTML = `
-                <span class="friend-drag-handle" title="Перетащите, чтобы изменить порядок">⋮⋮</span> 
+                <span class="friend-drag-handle" title="Перетащите, чтобы изменить порядок">⋮⋮</span>
                 <span class="flex-grow-1">👤 ${escapeHtml(friend.name)} <span class="text-muted small fw-normal ms-1">(${escapeHtml(friend.group)})</span></span>
                 <button class="btn btn-sm btn-link text-primary p-0 me-2 text-decoration-none" onclick="editFriend(${friend.id}, '${escapeAttr(friend.name)}', '${escapeAttr(friend.group)}', '${friend.subgroup}', '${escapeAttr(friend.category || '')}')" title="Редактировать">✏️</button>
                 <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="deleteFriend(${friend.id})" title="Удалить">🗑️</button>
             `;
             wrapper.appendChild(header);
-            
+
             let grid = document.createElement('div');
             grid.className = "calendar-grid w-100";
-            
+
             for(let i = 0; i < 7; i++) {
                 let d = new Date(currentBaseDate); d.setDate(d.getDate() + i);
                 let dateStr = getLocalDateStr(d);
                 let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
-                
+
                 let daySchedule = friendSched.filter(item => item.date === dateStr);
                 daySchedule.sort((a, b) => a.n - b.n);
-                
+
                 let myDaySchedule = cachedSchedule.filter(item => item.date === dateStr);
                 myDaySchedule.sort((a, b) => a.n - b.n);
-                
+
                 let html = `<div class="friend-col"><div class="friend-day-header">${displayDate}</div>`;
-                
+
                 if (daySchedule.length > 0) {
                     let fStart = fixTime(daySchedule[0].time_range.split(' - ')[0]);
                     let fEnd = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
                     let fCampStart = getCampus(daySchedule[0]);
                     let fCampEnd = getCampus(daySchedule[daySchedule.length - 1]);
-                    
+
                     html += `<div class="fw-bold text-primary mb-2 text-center border-bottom pb-1" style="font-size: 0.8em;">🕒 ${fStart} - ${fEnd}</div>`;
-                    
+
                     let myStart = myDaySchedule.length > 0 ? fixTime(myDaySchedule[0].time_range.split(' - ')[0]) : null;
                     let myEnd = myDaySchedule.length > 0 ? fixTime(myDaySchedule[myDaySchedule.length - 1].time_range.split(' - ')[1]) : null;
                     let myCampStart = myDaySchedule.length > 0 ? getCampus(myDaySchedule[0]) : 'unknown';
@@ -2956,10 +2884,9 @@
 
                     const campusNames = { 'galosha': 'Галоша', 'gogol': 'Гоголя', 'univer': 'Университетская' };
 
-                    // ПОИСК ОБЩИХ ПАР (совпадение по времени, названию предмета и аудитории)
                     daySchedule.forEach(fItem => {
-                        let match = myDaySchedule.find(myItem => 
-                            myItem.time_range === fItem.time_range && 
+                        let match = myDaySchedule.find(myItem =>
+                            myItem.time_range === fItem.time_range &&
                             myItem.lesson === fItem.lesson &&
                             (myItem.location || '').trim().toLowerCase() === (fItem.location || '').trim().toLowerCase()
                         );
@@ -2968,7 +2895,6 @@
                         }
                     });
 
-                    // НАЧАЛО пары
                     if (myStart && fStart === myStart) {
                         if (fCampStart !== 'unknown' && myCampStart !== 'unknown') {
                             if (fCampStart !== myCampStart) {
@@ -2981,8 +2907,7 @@
                             html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Начинаем в одно время: ${fStart}</div>`;
                         }
                     }
-                    
-                    // КОНЕЦ пары
+
                     if (myEnd && fEnd === myEnd) {
                         if (fCampEnd !== 'unknown' && myCampEnd !== 'unknown') {
                             if (fCampEnd !== myCampEnd) {
@@ -2996,12 +2921,11 @@
                         }
                     }
 
-                    // ПОДРОБНОЕ РАСПИСАНИЕ ДРУГА (показываем, если включен ползунок)
                     if (showFriends) {
                         html += `<div class="mt-2 border-top pt-2">`;
                         daySchedule.forEach(fItem => {
                             let typeBadge = fItem.type_name ? `<span class="badge bg-secondary ms-1" style="font-size: 0.6em;">${fItem.type_name}</span>` : '';
-                            
+
                             let teacherHtml = (showTeacher && fItem.teacher) ? `<div class="text-muted mt-1" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(fItem.teacher)}</div>` : '';
                             let locHtml = (showLocation && fItem.location) ? `<div class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(fItem.location)}</div>` : '';
 
