@@ -338,3 +338,27 @@ body {
     opacity: 0.35;
     cursor: not-allowed;
 }
+
+/* ===== Модальное окно настроек ===== */
+.settings-section-title {
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+#settingsModal .form-check-label {
+    color: #334155;
+}
+#settingsModal .form-check-input:checked {
+    background-color: #6366f1;
+    border-color: #6366f1;
+}
+#settingsNotifHint {
+    padding: 6px 10px;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    border-radius: 4px;
+    color: #78716c;
+}

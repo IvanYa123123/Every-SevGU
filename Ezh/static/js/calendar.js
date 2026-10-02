@@ -321,7 +321,6 @@ function rebalanceDayText(dateStr) {
     });
 }
 
-// Обновляет состояние disabled у кнопок навигации в развёрнутом дне.
 function updateNavButtonsState(dateStr) {
     let col = document.getElementById(`day-col-${dateStr}`);
     if (!col) return;

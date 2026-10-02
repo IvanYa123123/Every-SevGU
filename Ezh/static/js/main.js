@@ -20,9 +20,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
 
-        document.getElementById('toggleTeacher').checked = showTeacher;
-        document.getElementById('toggleLocation').checked = showLocation;
-        document.getElementById('toggleFriends').checked = showFriends;
+        initSettings();
 
         await ensureGroupsLoaded();
         initGroupAutocomplete(document.getElementById('groupSelect'));
@@ -30,8 +28,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         await refreshTaskDates();
 
+        initNotifications();
+
         updateScheduleStatus();
-        setInterval(updateScheduleStatus, 30000);
+        restartStatusTimer();
 
         if (localStorage.getItem('savedGroup')) {
             document.getElementById('groupSelect').value = localStorage.getItem('savedGroup');
@@ -53,12 +53,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function updateDisplayPrefs() {
-    showTeacher  = document.getElementById('toggleTeacher').checked;
-    showLocation = document.getElementById('toggleLocation').checked;
-    showFriends  = document.getElementById('toggleFriends').checked;
-    localStorage.setItem('showTeacher', showTeacher);
-    localStorage.setItem('showLocation', showLocation);
-    localStorage.setItem('showFriends', showFriends);
+    // Оставлено для обратной совместимости: если где-то ещё остался вызов — он просто
+    // синхронизирует переменные с localStorage и перерисовывает календарь.
+    showTeacher  = localStorage.getItem('showTeacher')  !== 'false';
+    showLocation = localStorage.getItem('showLocation') !== 'false';
+    showFriends  = localStorage.getItem('showFriends')  !== 'false';
     renderCalendar();
 }
 
@@ -129,6 +128,7 @@ async function fetchSemesterData() {
     hideGlobalLoader();
     fetchFriends();
     updateScheduleStatus();
+    refreshNotifications();
     syncSemesterData(group, subgroup);
 }
 
@@ -145,6 +145,7 @@ async function syncSemesterData(group, subgroup) {
                 renderCalendar();
                 try { renderCharts(); } catch (e) { console.error(e); }
                 updateScheduleStatus();
+                refreshNotifications();
                 showUpdateNotification("Ваше расписание обновлено в фоне");
             }
         }

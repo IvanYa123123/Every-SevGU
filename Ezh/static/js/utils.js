@@ -96,7 +96,6 @@ function getDisplaySubjectKey(subjKey) {
     return subjKey;
 }
 
-// Склонение существительных по числу: plural(1, 'минута', 'минуты', 'минут') → 'минута'
 function plural(n, one, few, many) {
     let mod10 = n % 10;
     let mod100 = n % 100;
@@ -105,7 +104,6 @@ function plural(n, one, few, many) {
     return many;
 }
 
-// Человеко-читаемая длительность: 5 минут, 1 час 20 минут
 function formatDuration(mins) {
     if (mins < 1) return "меньше минуты";
     if (mins < 60) return `${mins} ${plural(mins, 'минуту', 'минуты', 'минут')}`;
@@ -116,10 +114,66 @@ function formatDuration(mins) {
     return `${hStr} ${m} ${plural(m, 'минуту', 'минуты', 'минут')}`;
 }
 
-// 2026-10-05 → "5 октября"
 function formatDateRu(dateStr) {
     let [y, m, d] = dateStr.split('-').map(Number);
     let months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
                   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
     return `${d} ${months[m - 1]}`;
+}
+
+// ============================================================
+//  ДЛИТЕЛЬНОСТЬ С ТОЧНОСТЬЮ (для статус-строки)
+// ============================================================
+// < 1 часа:  "X минут [Y секунд [Z.cc секунд]]"
+// < 1 дня:   "X часов Y минут [Z секунд [W.cc секунд]]"
+// >= 1 дня:  "N дней M часов"
+function formatDurationMs(ms, precision = 'min') {
+    if (!isFinite(ms) || ms < 0) return "0 секунд";
+
+    const MS_SEC = 1000;
+    const MS_MIN = 60 * MS_SEC;
+    const MS_HOUR = 60 * MS_MIN;
+    const MS_DAY = 24 * MS_HOUR;
+
+    if (ms >= MS_DAY) {
+        let days = Math.floor(ms / MS_DAY);
+        let hours = Math.floor((ms % MS_DAY) / MS_HOUR);
+        let dayStr = `${days} ${plural(days, 'день', 'дня', 'дней')}`;
+        if (hours === 0) return dayStr;
+        return `${dayStr} ${hours} ${plural(hours, 'час', 'часа', 'часов')}`;
+    }
+
+    let hours = Math.floor(ms / MS_HOUR);
+    let mins  = Math.floor((ms % MS_HOUR) / MS_MIN);
+    let secs  = Math.floor((ms % MS_MIN) / MS_SEC);
+    let cs    = Math.floor((ms % MS_SEC) / 10);
+
+    if (ms < MS_MIN) {
+        if (precision === 'min') return "меньше минуты";
+        if (precision === 'sec') return `${secs} ${plural(secs, 'секунду', 'секунды', 'секунд')}`;
+        let csStr = String(cs).padStart(2, '0');
+        return `${secs}.${csStr} ${plural(secs, 'секунды', 'секунд', 'секунд')}`;
+    }
+
+    let parts = [];
+
+    if (hours > 0) {
+        parts.push(`${hours} ${plural(hours, 'час', 'часа', 'часов')}`);
+        parts.push(`${mins} ${plural(mins, 'минуту', 'минуты', 'минут')}`);
+    } else {
+        parts.push(`${mins} ${plural(mins, 'минуту', 'минуты', 'минут')}`);
+    }
+
+    if (precision === 'sec' || precision === 'cs') {
+        if (precision === 'sec') {
+            if (secs > 0 || hours > 0 || mins > 0) {
+                parts.push(`${secs} ${plural(secs, 'секунду', 'секунды', 'секунд')}`);
+            }
+        } else {
+            let csStr = String(cs).padStart(2, '0');
+            parts.push(`${secs}.${csStr} ${plural(secs, 'секунды', 'секунд', 'секунд')}`);
+        }
+    }
+
+    return parts.join(' ');
 }

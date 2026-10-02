@@ -6,7 +6,9 @@ import re
 import sqlite3
 import secrets
 import threading
-from flask import Flask, render_template, request, jsonify, g
+import hashlib
+from datetime import datetime, timezone
+from flask import Flask, render_template, request, jsonify, g, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from planner import SevSUPlanner
@@ -722,6 +724,136 @@ def task_dates():
     conn = get_db()
     cursor = conn.execute("SELECT DISTINCT date FROM tasks ORDER BY date")
     return jsonify([row["date"] for row in cursor.fetchall()])
+
+
+# ============================================================
+#  ЭКСПОРТ В .ICS
+# ============================================================
+
+def _ics_escape(s):
+    """Экранирует спецсимволы для iCalendar-поля."""
+    if s is None:
+        return ''
+    return (str(s)
+            .replace('\\', '\\\\')
+            .replace(';', '\\;')
+            .replace(',', '\\,')
+            .replace('\r', '')
+            .replace('\n', '\\n'))
+
+
+def _stable_uid(*parts):
+    """Стабильный UID — не зависит от PYTHONHASHSEED, в отличие от hash()."""
+    s = '|'.join(str(p) for p in parts)
+    return hashlib.md5(s.encode('utf-8')).hexdigest()[:16]
+
+
+def _generate_ics(schedule, group_name):
+    """Собирает текст iCalendar из списка пар."""
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Ezh Dnevnik//Schedule//RU",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{_ics_escape(group_name)}",
+    ]
+
+    dtstamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+
+    # Сортируем по дате, потом по номеру пары
+    sorted_sched = sorted(
+        schedule,
+        key=lambda x: (x.get('date', ''), x.get('n', 0) or 0)
+    )
+
+    for item in sorted_sched:
+        date = item.get('date', '')
+        tr = item.get('time_range', '')
+        if not date or not tr or ' - ' not in tr:
+            continue
+
+        date_clean = date.replace('-', '')
+        try:
+            start_s, end_s = tr.split(' - ')
+            start_h, start_m = start_s.strip().split(':')
+            end_h, end_m = end_s.strip().split(':')
+        except ValueError:
+            continue
+
+        dtstart = f"{date_clean}T{start_h}{start_m}00"
+        dtend = f"{date_clean}T{end_h}{end_m}00"
+
+        lesson = item.get('lesson', '')
+        type_name = item.get('type_name', '')
+        teacher = item.get('teacher', '') or ''
+        location = item.get('location', '') or ''
+        n = item.get('n', '')
+
+        uid = _stable_uid(group_name, date, n, lesson, type_name) + "@ezh-dnevnik"
+        summary = f"{type_name} {lesson}".strip() if type_name else lesson
+
+        lines.append("BEGIN:VEVENT")
+        lines.append(f"UID:{uid}")
+        lines.append(f"DTSTAMP:{dtstamp}")
+        lines.append(f"DTSTART:{dtstart}")
+        lines.append(f"DTEND:{dtend}")
+        lines.append(f"SUMMARY:{_ics_escape(summary)}")
+        if location:
+            lines.append(f"LOCATION:{_ics_escape(location)}")
+        if teacher:
+            lines.append(f"DESCRIPTION:{_ics_escape(teacher)}")
+        lines.append("END:VEVENT")
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+@app.route("/api/schedule.ics")
+@limiter.limit("30 per minute")
+def export_ics():
+    """Отдаёт расписание группы в формате iCalendar."""
+    raw_group = request.args.get('group')
+    try:
+        group = validate_group(raw_group)
+    except ValueError:
+        return Response("Invalid group", status=400, mimetype='text/plain')
+    subgroup = validate_subgroup(request.args.get('subgroup', '0'))
+
+    safe_group = make_safe_filename(group)
+    cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
+
+    schedule = []
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                schedule = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            schedule = []
+
+    # Если кэша нет — сходим за расписанием (и заодно запишем его)
+    if not schedule:
+        schedule = planner.get_semester_schedule(group, subgroup)
+        if schedule:
+            try:
+                tmp = cache_file + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(schedule, f, ensure_ascii=False, indent=2)
+                os.replace(tmp, cache_file)
+            except OSError:
+                pass
+
+    ics_text = _generate_ics(schedule, group)
+    filename = f"schedule_{safe_group}_{subgroup}.ics"
+
+    return Response(
+        ics_text,
+        mimetype='text/calendar; charset=utf-8',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Cache-Control': 'no-store',
+        }
+    )
 
 
 # ============================================================

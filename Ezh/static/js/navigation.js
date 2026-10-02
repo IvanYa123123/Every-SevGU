@@ -1,6 +1,5 @@
 // Навигация в развёрнутом дне: к следующей/предыдущей заметке и к следующему/предыдущему событию.
 
-// Найти следующую дату, на которую есть заметки. Строки YYYY-MM-DD сравниваются лексикографически.
 function computeNextNoteDate(currentDateStr) {
     let sorted = [...taskDatesSet].sort();
     return sorted.find(d => d > currentDateStr) || null;
@@ -10,7 +9,6 @@ function computePrevNoteDate(currentDateStr) {
     return sorted.find(d => d < currentDateStr) || null;
 }
 
-// Перебирает customScheduleItems и проверяет, есть ли на дате хотя бы одно событие (is_event).
 function findNextEventDate(fromDateStr) {
     let [y, m, d] = fromDateStr.split('-').map(Number);
     let start = new Date(y, m - 1, d);
@@ -34,7 +32,6 @@ function findPrevEventDate(fromDateStr) {
     return null;
 }
 
-// Клик по кнопке «Предыдущая/следующая заметка»
 function navigateNote(fromDateStr, direction) {
     let target = direction > 0
         ? computeNextNoteDate(fromDateStr)
@@ -42,7 +39,6 @@ function navigateNote(fromDateStr, direction) {
     if (target) jumpToDate(target);
 }
 
-// Клик по кнопке «Предыдущее/следующее событие»
 function navigateEvent(fromDateStr, direction) {
     let target = direction > 0
         ? findNextEventDate(fromDateStr)
@@ -50,14 +46,13 @@ function navigateEvent(fromDateStr, direction) {
     if (target) jumpToDate(target);
 }
 
-// Переключить неделю так, чтобы dateStr попала в неё, развернуть этот день и прокрутить к нему.
 function jumpToDate(dateStr) {
     let [y, m, d] = dateStr.split('-').map(Number);
     let target = new Date(y, m - 1, d);
     let dow = target.getDay();
-    if (dow === 0) dow = 7;                       // воскресенье → 7
+    if (dow === 0) dow = 7;
     let monday = new Date(target);
-    monday.setDate(monday.getDate() - (dow - 1)); // понедельник недели с target
+    monday.setDate(monday.getDate() - (dow - 1));
 
     currentBaseDate = monday;
     expandedDayDateStr = dateStr;

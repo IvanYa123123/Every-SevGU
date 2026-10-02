@@ -1,8 +1,47 @@
 // Строка статуса под шапкой: «до пар / во время пары / после пар».
+// Формат и точность задаются в настройках (см. state.js).
+
+function _timeToMs(timeStr) {
+    let [h, m] = timeStr.split(':').map(Number);
+    return (h * 3600 + m * 60) * 1000;
+}
+
+function _nowMs() {
+    let now = new Date();
+    return ((now.getHours() * 60 + now.getMinutes()) * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
+}
+
+function _formatStatus(prefix, diffMs, absoluteTime) {
+    let intervalStr = null;
+    if (diffMs !== null && diffMs >= 0) {
+        intervalStr = `через ${formatDurationMs(diffMs, statusPrecision)}`;
+    }
+    let timeStr = absoluteTime ? `в ${absoluteTime}` : null;
+
+    if (statusFormat === 'time') {
+        if (timeStr) return `${prefix} ${timeStr}`;
+        if (intervalStr) return `${prefix} ${intervalStr}`;
+        return prefix;
+    }
+    if (statusFormat === 'both') {
+        if (intervalStr && timeStr) return `${prefix} ${intervalStr} (${timeStr})`;
+        if (intervalStr) return `${prefix} ${intervalStr}`;
+        if (timeStr) return `${prefix} ${timeStr}`;
+        return prefix;
+    }
+    if (intervalStr) return `${prefix} ${intervalStr}`;
+    if (timeStr) return `${prefix} ${timeStr}`;
+    return prefix;
+}
 
 function updateScheduleStatus() {
     let el = document.getElementById('scheduleStatus');
     if (!el) return;
+
+    if (typeof showStatus !== 'undefined' && !showStatus) {
+        el.textContent = '';
+        return;
+    }
 
     if (!cachedSchedule || cachedSchedule.length === 0) {
         el.textContent = '';
@@ -10,60 +49,52 @@ function updateScheduleStatus() {
     }
 
     let now = new Date();
-    let nowMins = now.getHours() * 60 + now.getMinutes();
+    let nowMs = _nowMs();
     let todayStr = getLocalDateStr(now);
 
-    // Только настоящие пары (без кастомных событий), на сегодня
     let todayPairs = cachedSchedule
         .filter(item => item.date === todayStr)
         .map(item => {
             let parts = item.time_range.split(' - ');
-            let [sh, sm] = parts[0].split(':').map(Number);
-            let [eh, em] = parts[1].split(':').map(Number);
-            return { ...item, startMins: sh * 60 + sm, endMins: eh * 60 + em };
+            return {
+                ...item,
+                startMs: _timeToMs(parts[0]),
+                endMs:   _timeToMs(parts[1])
+            };
         })
-        .sort((a, b) => a.startMins - b.startMins);
+        .sort((a, b) => a.startMs - b.startMs);
 
-    // 1. Есть пары сегодня
     if (todayPairs.length > 0) {
-        // 1а. Идёт какая-то пара прямо сейчас
-        let current = todayPairs.find(p => p.startMins <= nowMins && nowMins < p.endMins);
+        let current = todayPairs.find(p => p.startMs <= nowMs && nowMs < p.endMs);
         if (current) {
-            let remaining = current.endMins - nowMins;
+            let remaining = current.endMs - nowMs;
             let pairNum = current.n || '?';
-            el.textContent = `Окончание ${pairNum} пары через ${formatDuration(remaining)}`;
+            let endTime = fixTime(current.time_range.split(' - ')[1]);
+            el.textContent = _formatStatus(`Окончание ${pairNum} пары`, remaining, endTime);
             return;
         }
 
-        // 1б. Ещё ничего не началось
         let first = todayPairs[0];
-        if (nowMins < first.startMins) {
-            let until = first.startMins - nowMins;
-            let timeStr = fixTime(first.time_range.split(' - ')[0]);
-            if (until <= 60) {
-                el.textContent = `Начало пар в ${timeStr} — через ${formatDuration(until)}`;
-            } else {
-                el.textContent = `Начало пар в ${timeStr}`;
-            }
+        if (nowMs < first.startMs) {
+            let until = first.startMs - nowMs;
+            let startTime = fixTime(first.time_range.split(' - ')[0]);
+            el.textContent = _formatStatus('Начало пар', until, startTime);
             return;
         }
 
-        // 1в. Перерыв между парами
-        let next = todayPairs.find(p => p.startMins > nowMins);
+        let next = todayPairs.find(p => p.startMs > nowMs);
         if (next) {
-            let until = next.startMins - nowMins;
-            let timeStr = fixTime(next.time_range.split(' - ')[0]);
+            let until = next.startMs - nowMs;
+            let startTime = fixTime(next.time_range.split(' - ')[0]);
             let pairNum = next.n || '?';
-            el.textContent = `Начало ${pairNum} пары в ${timeStr} — через ${formatDuration(until)}`;
+            el.textContent = _formatStatus(`Начало ${pairNum} пары`, until, startTime);
             return;
         }
 
-        // 1г. Все пары на сегодня закончились
         setStatusForNextDay(now, el);
         return;
     }
 
-    // 2. Сегодня пар нет — ищем следующий день с парами
     setStatusForNextDay(now, el);
 }
 
@@ -85,9 +116,9 @@ function setStatusForNextDay(now, el) {
         let firstTime = fixTime(first.time_range.split(' - ')[0]);
 
         if (i === 1) {
-            el.textContent = `Начало пар завтра в ${firstTime}`;
+            el.textContent = _formatStatus('Начало пар завтра', null, firstTime);
         } else {
-            el.textContent = `Начало пар ${formatDateRu(dateStr)} в ${firstTime}`;
+            el.textContent = _formatStatus(`Начало пар ${formatDateRu(dateStr)}`, null, firstTime);
         }
         return;
     }
