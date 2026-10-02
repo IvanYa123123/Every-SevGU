@@ -1,8 +1,14 @@
 import os
 import json
 import time
+import gzip
+import re
 import sqlite3
+import secrets
+import threading
 from flask import Flask, render_template, request, jsonify, g
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from planner import SevSUPlanner
 
 app = Flask(__name__)
@@ -15,22 +21,159 @@ CUSTOM_GROUPS_FILE = os.path.join(BASE_DIR, "custom_groups.json")
 SCHEDULES_DIR = os.path.join(BASE_DIR, "schedules")
 SYNC_TIMES_FILE = os.path.join(BASE_DIR, ".sync_times.json")
 
-# Троттлинг фоновой синхронизации: по умолчанию не чаще, чем раз в 6 часов.
 MIN_SYNC_INTERVAL = 6 * 3600
 
 os.makedirs(SCHEDULES_DIR, exist_ok=True)
 
 # ============================================================
+#  АУТЕНТИФИКАЦИЯ (опционально, через APP_TOKEN в env)
+# ============================================================
+# Если APP_TOKEN не задан — приложение работает без авторизации (localhost-режим).
+# Если задан — все /api/* (кроме /api/health) требуют заголовок X-Auth-Token
+# или ?token=<значение> в query-строке.
+
+APP_TOKEN = os.environ.get("APP_TOKEN", "").strip()
+_AUTH_EXEMPT_PATHS = {"/", "/api/health"}
+
+
+def _check_auth():
+    """Возвращает True, если запрос авторизован или авторизация отключена."""
+    if not APP_TOKEN:
+        return True
+    token = request.headers.get("X-Auth-Token") or request.args.get("token", "")
+    return secrets.compare_digest(token, APP_TOKEN)
+
+
+@app.before_request
+def _enforce_auth():
+    if not APP_TOKEN:
+        return
+    path = request.path or ""
+    if path in _AUTH_EXEMPT_PATHS:
+        return
+    if path.startswith("/static/"):
+        return
+    if not _check_auth():
+        return jsonify({"error": "unauthorized"}), 401
+
+
+# ============================================================
+#  RATE LIMITING
+# ============================================================
+# Ключ — IP клиента. Хранилище — in-memory (для одного воркера).
+# Для gunicorn -w >1 сменить storage_uri на redis://... или memcached://...
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["300 per minute"],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
+
+
+# ============================================================
+#  CSP NONCE
+# ============================================================
+
+@app.before_request
+def _generate_csp_nonce():
+    g.csp_nonce = secrets.token_urlsafe(16)
+
+
+@app.context_processor
+def _inject_csp_nonce():
+    return {"csp_nonce": getattr(g, "csp_nonce", "")}
+
+
+# ============================================================
+#  GZIP + SECURITY HEADERS
+# ============================================================
+
+_GZIP_MIN_SIZE = 1024
+_GZIP_TYPES = ('application/json', 'text/html', 'text/plain', 'text/css',
+               'application/javascript', 'text/javascript', 'image/svg+xml')
+
+
+@app.after_request
+def _gzip_response(response):
+    if (response.status_code < 200 or response.status_code >= 300
+            or response.direct_passthrough
+            or response.headers.get('Content-Encoding')):
+        return response
+
+    if 'gzip' not in request.headers.get('Accept-Encoding', ''):
+        return response
+
+    ctype = (response.content_type or '').split(';', 1)[0].strip().lower()
+    if ctype not in _GZIP_TYPES:
+        return response
+
+    data = response.get_data()
+    if len(data) < _GZIP_MIN_SIZE:
+        return response
+
+    compressed = gzip.compress(data, compresslevel=5)
+    if len(compressed) >= len(data):
+        return response
+
+    response.set_data(compressed)
+    response.headers['Content-Encoding'] = 'gzip'
+    response.headers['Content-Length'] = str(len(compressed))
+    response.headers.add('Vary', 'Accept-Encoding')
+    return response
+
+
+@app.after_request
+def _security_headers(response):
+    """CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy.
+
+    script-src       — nonce для <script> блоков + разрешённый CDN.
+    script-src-attr  — 'unsafe-inline' для inline-обработчиков (onclick="...").
+                       Это отдельная директива CSP3: она управляет ТОЛЬКО
+                       атрибутами, а не <script>-блоками. То есть основной код
+                       остаётся под защитой nonce, а inline-onclick разрешены.
+    """
+    nonce = getattr(g, "csp_nonce", "")
+
+    csp_parts = [
+        "default-src 'self'",
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net",
+        "script-src-attr 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+    response.headers['Content-Security-Policy'] = "; ".join(csp_parts)
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'same-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    response.headers.pop('Server', None)
+    return response
+
+
+# ============================================================
 #  БАЗА ДАННЫХ
 # ============================================================
 
+_db_init_lock = threading.Lock()
+_db_ready = False
+
+
 def get_db():
-    """Возвращает соединение с БД, привязанное к текущему запросу."""
     if 'db' not in g:
-        g.db = sqlite3.connect(DB_FILE)
+        g.db = sqlite3.connect(DB_FILE, timeout=30)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA busy_timeout = 5000")
     return g.db
+
 
 @app.teardown_appcontext
 def close_db(exc=None):
@@ -38,159 +181,281 @@ def close_db(exc=None):
     if db is not None:
         db.close()
 
+
 def _column_exists(conn, table, column):
-    """Проверяет наличие колонки в таблице — надёжнее, чем try/except ALTER TABLE."""
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     return any(r[1] == column for r in rows)
 
+
 def _add_column_if_missing(conn, table, column, ddl):
     if not _column_exists(conn, table, column):
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
 
-def init_db():
-    """Создаёт схему при первом запуске и докатывает недостающие колонки."""
-    with sqlite3.connect(DB_FILE) as conn:
-        # WAL: параллельные чтения не блокируют запись.
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute("PRAGMA synchronous = NORMAL")
 
-        conn.execute('''CREATE TABLE IF NOT EXISTS tasks
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         date TEXT NOT NULL,
-                         text TEXT NOT NULL,
-                         status TEXT NOT NULL DEFAULT 'green')''')
+def init_db(retries: int = 5):
+    last_err = None
+    for attempt in range(retries):
+        try:
+            with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                conn.execute("PRAGMA journal_mode = WAL")
+                conn.execute("PRAGMA synchronous = NORMAL")
+                conn.execute("PRAGMA mmap_size = 268435456")
+                conn.execute("PRAGMA temp_store = MEMORY")
+                conn.execute("PRAGMA cache_size = -64000")
 
-        conn.execute('''CREATE TABLE IF NOT EXISTS lab_progress
-                        (group_name TEXT NOT NULL,
-                         subject TEXT NOT NULL,
-                         completed INTEGER NOT NULL DEFAULT 0,
-                         total INTEGER NOT NULL DEFAULT 0,
-                         PRIMARY KEY(group_name, subject))''')
+                conn.execute('''CREATE TABLE IF NOT EXISTS tasks
+                                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 date TEXT NOT NULL,
+                                 text TEXT NOT NULL,
+                                 status TEXT NOT NULL DEFAULT 'green')''')
 
-        conn.execute('''CREATE TABLE IF NOT EXISTS friends
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         name TEXT NOT NULL,
-                         group_name TEXT NOT NULL,
-                         subgroup TEXT NOT NULL DEFAULT '0',
-                         category TEXT DEFAULT 'Мои друзья')''')
+                conn.execute('''CREATE TABLE IF NOT EXISTS lab_progress
+                                (group_name TEXT NOT NULL,
+                                 subject TEXT NOT NULL,
+                                 completed INTEGER NOT NULL DEFAULT 0,
+                                 total INTEGER NOT NULL DEFAULT 0,
+                                 PRIMARY KEY(group_name, subject))''')
 
-        conn.execute('''CREATE TABLE IF NOT EXISTS subject_settings
-                        (subject TEXT PRIMARY KEY,
-                         custom_name TEXT,
-                         link TEXT)''')
+                conn.execute('''CREATE TABLE IF NOT EXISTS friends
+                                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 name TEXT NOT NULL,
+                                 group_name TEXT NOT NULL,
+                                 subgroup TEXT NOT NULL DEFAULT '0',
+                                 category TEXT DEFAULT 'Мои друзья')''')
 
-        # Таблица для кастомного расписания (пары и события, добавленные пользователем)
-        conn.execute('''CREATE TABLE IF NOT EXISTS custom_schedule
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         group_name TEXT,
-                         base_date TEXT,
-                         time_range TEXT,
-                         lesson TEXT,
-                         type_name TEXT,
-                         teacher TEXT,
-                         location TEXT,
-                         is_event INTEGER,
-                         recurrence TEXT,
-                         exceptions TEXT DEFAULT '[]')''')
+                conn.execute('''CREATE TABLE IF NOT EXISTS subject_settings
+                                (subject TEXT PRIMARY KEY,
+                                 custom_name TEXT,
+                                 link TEXT)''')
 
-        # Миграции: докатываем колонки, которых может не быть в старой БД.
-        _add_column_if_missing(conn, "subject_settings", "teacher", "TEXT")
-        _add_column_if_missing(conn, "subject_settings", "location", "TEXT")
-        _add_column_if_missing(conn, "friends", "category", "TEXT DEFAULT 'Мои друзья'")
-        _add_column_if_missing(conn, "custom_schedule", "exceptions", "TEXT DEFAULT '[]'")
+                conn.execute('''CREATE TABLE IF NOT EXISTS custom_schedule
+                                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 group_name TEXT,
+                                 base_date TEXT,
+                                 time_range TEXT,
+                                 lesson TEXT,
+                                 type_name TEXT,
+                                 teacher TEXT,
+                                 location TEXT,
+                                 is_event INTEGER,
+                                 recurrence TEXT,
+                                 exceptions TEXT DEFAULT '[]')''')
 
-        # Индексы для частых выборок.
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(date)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_friends_category ON friends(category)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_lab_group ON lab_progress(group_name)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_custom_group ON custom_schedule(group_name)")
+                _add_column_if_missing(conn, "subject_settings", "teacher", "TEXT")
+                _add_column_if_missing(conn, "subject_settings", "location", "TEXT")
+                _add_column_if_missing(conn, "friends", "category", "TEXT DEFAULT 'Мои друзья'")
+                _add_column_if_missing(conn, "custom_schedule", "exceptions", "TEXT DEFAULT '[]'")
 
-init_db()
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(date)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_date_status ON tasks(date, status)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_friends_category ON friends(category)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_lab_group ON lab_progress(group_name)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_custom_group ON custom_schedule(group_name)")
+                conn.commit()
+                return
+        except sqlite3.OperationalError as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(0.2 * (attempt + 1))
+            else:
+                raise
+    if last_err:
+        raise last_err
+
+
+@app.before_request
+def _ensure_db_initialized():
+    global _db_ready
+    if _db_ready:
+        return
+    with _db_init_lock:
+        if not _db_ready:
+            init_db()
+            _db_ready = True
+
 
 # ============================================================
-#  РАБОТА С ГРУППАМИ
+#  КЭШИРОВАНИЕ ФАЙЛОВ (mtime-based)
 # ============================================================
+
+class _MtimeJsonCache:
+    __slots__ = ('path', 'lock', '_mtime', '_value', '_loaded')
+
+    def __init__(self, path):
+        self.path = path
+        self.lock = threading.RLock()
+        self._mtime = None
+        self._value = None
+        self._loaded = False
+
+    def _mtime_now(self):
+        try:
+            return os.path.getmtime(self.path)
+        except OSError:
+            return None
+
+    def read(self, default_factory=list):
+        mt = self._mtime_now()
+        with self.lock:
+            if not self._loaded or mt != self._mtime:
+                if mt is None:
+                    self._value = default_factory()
+                else:
+                    try:
+                        with open(self.path, 'r', encoding='utf-8') as f:
+                            self._value = json.load(f)
+                    except (json.JSONDecodeError, OSError):
+                        self._value = default_factory()
+                self._mtime = mt
+                self._loaded = True
+            return self._value
+
+    def write(self, value, ensure_ascii=False, indent=None):
+        with self.lock:
+            try:
+                tmp = self.path + '.tmp'
+                with open(tmp, 'w', encoding='utf-8') as f:
+                    json.dump(value, f, ensure_ascii=ensure_ascii, indent=indent)
+                os.replace(tmp, self.path)
+                self._value = value
+                self._mtime = self._mtime_now()
+                self._loaded = True
+            except OSError:
+                pass
+
+
+_custom_groups_cache = _MtimeJsonCache(CUSTOM_GROUPS_FILE)
+
+_groups_txt_lock = threading.RLock()
+_groups_txt_mtime = None
+_groups_txt_data = None
+_groups_txt_loaded = False
+
+
+def _read_groups_txt():
+    global _groups_txt_mtime, _groups_txt_data, _groups_txt_loaded
+    try:
+        mt = os.path.getmtime(GROUPS_FILE)
+    except OSError:
+        mt = None
+    with _groups_txt_lock:
+        if not _groups_txt_loaded or mt != _groups_txt_mtime:
+            if mt is None:
+                _groups_txt_data = []
+            else:
+                names = []
+                seen = set()
+                try:
+                    with open(GROUPS_FILE, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            name = line.strip()
+                            if name and name not in seen:
+                                seen.add(name)
+                                names.append(name)
+                except OSError:
+                    pass
+                _groups_txt_data = names
+            _groups_txt_mtime = mt
+            _groups_txt_loaded = True
+        return _groups_txt_data
+
+
+# ============================================================
+#  ВАЛИДАЦИЯ
+# ============================================================
+
+_VALID_SUBGROUPS = frozenset(("0", "1", "2"))
+
+# Группа СевГУ: кириллица/латиница, цифры, дефис, слэш, точка, подчёркивание.
+# Именно эти символы встречаются в Group.txt (например: "ИВТ/б-24-2-о", "ЛД/с-23-1-о-ая").
+_GROUP_RE = re.compile(r'^[A-Za-zА-Яа-яЁё0-9/._\-]{1,64}$')
+
+_FORBIDDEN_CHARS = str.maketrans({
+    '/': '_', '\\': '_', ':': '_', '*': '_', '?': '_',
+    '"': '_', '<': '_', '>': '_', '|': '_'
+})
+
+
+def validate_subgroup(raw) -> str:
+    s = str(raw if raw is not None else "0").strip()
+    return s if s in _VALID_SUBGROUPS else "0"
+
+
+def validate_group(raw) -> str:
+    """Валидирует название группы. Возвращает нормализованное значение
+    или бросает ValueError."""
+    s = str(raw or "").strip()
+    if not s:
+        raise ValueError("group required")
+    if len(s) > 64:
+        raise ValueError("group too long")
+    if not _GROUP_RE.match(s):
+        raise ValueError("invalid group format")
+    return s
+
+
+def make_safe_filename(name):
+    result = str(name).translate(_FORBIDDEN_CHARS)
+    result = result.replace('..', '__').strip('. ')
+    return (result or '_')[:120]
+
 
 def load_custom_groups():
-    """Загружает список пользовательских групп из JSON-файла."""
-    if os.path.exists(CUSTOM_GROUPS_FILE):
-        try:
-            with open(CUSTOM_GROUPS_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    return [str(x).strip() for x in data if str(x).strip()]
-        except (json.JSONDecodeError, OSError):
-            pass
+    data = _custom_groups_cache.read(default_factory=list)
+    if isinstance(data, list):
+        return [str(x).strip() for x in data if str(x).strip()]
     return []
 
+
 def save_custom_groups(groups):
-    """Сохраняет список пользовательских групп в JSON-файл."""
-    try:
-        with open(CUSTOM_GROUPS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(groups, f, ensure_ascii=False, indent=2)
-    except OSError:
-        pass
+    _custom_groups_cache.write(groups, ensure_ascii=False, indent=2)
+
 
 def load_local_groups():
-    """Group.txt + custom_groups.json с дедупликацией."""
-    groups = []
-    seen = set()
-
-    if os.path.exists(GROUPS_FILE):
-        try:
-            with open(GROUPS_FILE, 'r', encoding='utf-8') as f:
-                for line in f:
-                    name = line.strip()
-                    if name and name not in seen:
-                        seen.add(name)
-                        groups.append(name)
-        except OSError:
-            pass
-
+    groups = list(_read_groups_txt())
+    seen = set(groups)
     for name in load_custom_groups():
         if name and name not in seen:
             seen.add(name)
             groups.append(name)
-
     return groups
 
-def make_safe_filename(name):
-    """Заменяет символы, запрещённые в именах файлов."""
-    forbidden = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
-    result = str(name)
-    for ch in forbidden:
-        result = result.replace(ch, '_')
-    return result
 
 # ============================================================
 #  ТРОТТЛИНГ СИНХРОНИЗАЦИИ
 # ============================================================
 
-def _load_sync_times():
-    if os.path.exists(SYNC_TIMES_FILE):
-        try:
-            with open(SYNC_TIMES_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
+_sync_times_cache = _MtimeJsonCache(SYNC_TIMES_FILE)
 
-def _save_sync_times(times):
-    try:
-        with open(SYNC_TIMES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(times, f)
-    except OSError:
-        pass
 
 def _needs_sync(key):
-    """True, если с момента последней синхронизации прошло больше MIN_SYNC_INTERVAL."""
-    last = _load_sync_times().get(key, 0)
+    data = _sync_times_cache.read(default_factory=dict)
+    last = data.get(key, 0) if isinstance(data, dict) else 0
     return (time.time() - last) > MIN_SYNC_INTERVAL
 
+
 def _mark_synced(key):
-    times = _load_sync_times()
-    times[key] = time.time()
-    _save_sync_times(times)
+    cache = _sync_times_cache
+    with cache.lock:
+        data = cache.read(default_factory=dict)
+        if not isinstance(data, dict):
+            data = {}
+        data[key] = time.time()
+        cache.write(data)
+
+
+# ============================================================
+#  HEALTHCHECK
+# ============================================================
+
+@app.route("/api/health")
+def health():
+    return jsonify({"ok": True})
+
 
 # ============================================================
 #  РОУТЫ
@@ -200,31 +465,41 @@ def _mark_synced(key):
 def index():
     return render_template("index.html")
 
+
 @app.route("/api/groups")
 def get_groups():
-    """Список групп из локальной базы. Если пусто — тянем с сервера СевГУ."""
     local_groups = load_local_groups()
     if local_groups:
-        return jsonify(local_groups)
+        resp = jsonify(local_groups)
+        resp.headers['Cache-Control'] = 'public, max-age=3600'
+        return resp
 
     try:
         params = {"v": "6.2", "section": "0"}
-        resp = planner.session.get(planner.groups_api, params=params, timeout=5)
-        if resp.status_code == 200:
+        r = planner.session.get(planner.groups_api, params=params, timeout=5)
+        if r.status_code == 200:
             try:
-                return jsonify(resp.json())
+                resp = jsonify(r.json())
+                resp.headers['Cache-Control'] = 'public, max-age=3600'
+                return resp
             except ValueError:
                 pass
     except Exception:
         pass
     return jsonify([])
 
+
 @app.route("/api/groups/custom", methods=["POST"])
+@limiter.limit("30 per minute")
 def add_custom_group():
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({"success": False, "error": "empty name"}), 400
+    try:
+        name = validate_group(name)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
 
     existing = load_local_groups()
     if any(g.lower() == name.lower() for g in existing):
@@ -237,12 +512,16 @@ def add_custom_group():
 
     return jsonify({"success": True})
 
+
 @app.route("/api/schedule_all")
+@limiter.limit("60 per minute")
 def get_schedule_all():
-    group = request.args.get('group')
-    subgroup = request.args.get('subgroup', '0')
-    if not group:
+    raw_group = request.args.get('group')
+    try:
+        group = validate_group(raw_group)
+    except ValueError:
         return jsonify([])
+    subgroup = validate_subgroup(request.args.get('subgroup', '0'))
 
     safe_group = make_safe_filename(group)
     cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
@@ -259,34 +538,36 @@ def get_schedule_all():
     schedule = planner.get_semester_schedule(group, subgroup)
     if schedule:
         try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
+            tmp = cache_file + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(schedule, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, cache_file)
         except OSError:
             pass
     return jsonify(schedule)
 
+
 @app.route("/api/schedule_sync")
+@limiter.limit("10 per minute")  # Жёстко троттлим: каждый вызов бьёт по СевГУ
 def sync_schedule():
-    """Фоновое обновление расписания. Троттлится, чтобы не дёргать СевГУ зря."""
-    group = request.args.get('group')
-    subgroup = request.args.get('subgroup', '0')
-    if not group:
+    raw_group = request.args.get('group')
+    try:
+        group = validate_group(raw_group)
+    except ValueError:
         return jsonify([])
+    subgroup = validate_subgroup(request.args.get('subgroup', '0'))
 
     force = request.args.get('force') == '1'
     sync_key = f"{group}_{subgroup}"
 
     if not force and not _needs_sync(sync_key):
-        # Недавно синхронизировали — не трогаем.
         return jsonify([])
 
     schedule = planner.get_semester_schedule(group, subgroup)
+    safe_group = make_safe_filename(group)
+    cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
 
     if schedule:
-        safe_group = make_safe_filename(group)
-        cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
-
-        # Защита: не перезаписываем кэш, если пришло меньше 90% старого объёма.
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, 'r', encoding='utf-8') as f:
@@ -298,20 +579,27 @@ def sync_schedule():
                 pass
 
         try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
+            tmp = cache_file + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(schedule, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, cache_file)
         except OSError:
             pass
 
-    # Отмечаем синхронизацию независимо от результата — чтобы не долбить СевГУ.
-    _mark_synced(sync_key)
+        _mark_synced(sync_key)
+    else:
+        if not os.path.exists(cache_file):
+            _mark_synced(sync_key)
+
     return jsonify(schedule)
+
 
 # ============================================================
 #  ЛАБЫ
 # ============================================================
 
 @app.route("/api/labs", methods=["GET", "POST"])
+@limiter.limit("120 per minute")
 def manage_labs():
     conn = get_db()
 
@@ -353,11 +641,13 @@ def manage_labs():
             for row in cursor.fetchall()}
     return jsonify(labs)
 
+
 # ============================================================
 #  ЗАДАЧИ
 # ============================================================
 
 @app.route("/api/tasks", methods=["GET", "POST"])
+@limiter.limit("300 per minute")
 def manage_tasks():
     conn = get_db()
 
@@ -369,6 +659,8 @@ def manage_tasks():
 
         if not date or not text:
             return jsonify({"error": "date and text required"}), 400
+        if len(text) > 2000:
+            return jsonify({"error": "text too long"}), 400
         if status not in ('green', 'orange', 'red', 'completed'):
             status = 'green'
 
@@ -393,7 +685,9 @@ def manage_tasks():
              for row in cursor.fetchall()]
     return jsonify(tasks)
 
+
 @app.route("/api/tasks/<int:task_id>", methods=["PUT", "DELETE"])
+@limiter.limit("300 per minute")
 def update_task(task_id):
     conn = get_db()
 
@@ -405,6 +699,8 @@ def update_task(task_id):
 
         if not date or not text:
             return jsonify({"error": "date and text required"}), 400
+        if len(text) > 2000:
+            return jsonify({"error": "text too long"}), 400
 
         conn.execute(
             "UPDATE tasks SET date=?, status=?, text=? WHERE id=?",
@@ -417,11 +713,23 @@ def update_task(task_id):
     conn.commit()
     return jsonify({"success": True})
 
+
+@app.route("/api/task_dates")
+@limiter.limit("120 per minute")
+def task_dates():
+    """Список уникальных дат, на которые есть хотя бы одна заметка.
+    Используется для навигации 'предыдущая/следующая заметка'."""
+    conn = get_db()
+    cursor = conn.execute("SELECT DISTINCT date FROM tasks ORDER BY date")
+    return jsonify([row["date"] for row in cursor.fetchall()])
+
+
 # ============================================================
 #  ДРУЗЬЯ
 # ============================================================
 
 @app.route("/api/friends", methods=["GET", "POST"])
+@limiter.limit("120 per minute")
 def manage_friends():
     conn = get_db()
 
@@ -434,6 +742,12 @@ def manage_friends():
 
         if not name or not group:
             return jsonify({"error": "name and group required"}), 400
+        if len(name) > 100 or len(category) > 100:
+            return jsonify({"error": "field too long"}), 400
+        try:
+            group = validate_group(group)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
         cursor = conn.execute(
             "INSERT INTO friends (name, group_name, subgroup, category) VALUES (?, ?, ?, ?)",
@@ -448,7 +762,9 @@ def manage_friends():
                for row in cursor.fetchall()]
     return jsonify(friends)
 
+
 @app.route("/api/friends/<int:friend_id>", methods=["PUT", "DELETE"])
+@limiter.limit("120 per minute")
 def update_or_delete_friend(friend_id):
     conn = get_db()
 
@@ -461,6 +777,10 @@ def update_or_delete_friend(friend_id):
 
         if not name or not group:
             return jsonify({"error": "name and group required"}), 400
+        try:
+            group = validate_group(group)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
         conn.execute(
             "UPDATE friends SET name=?, group_name=?, subgroup=?, category=? WHERE id=?",
@@ -473,11 +793,13 @@ def update_or_delete_friend(friend_id):
     conn.commit()
     return jsonify({"success": True})
 
+
 # ============================================================
 #  НАСТРОЙКИ ПРЕДМЕТОВ
 # ============================================================
 
 @app.route("/api/subjects", methods=["GET", "POST"])
+@limiter.limit("120 per minute")
 def manage_subjects():
     conn = get_db()
 
@@ -486,13 +808,20 @@ def manage_subjects():
         subject = (data.get('subject') or '').strip()
         if not subject:
             return jsonify({"error": "subject required"}), 400
+        if len(subject) > 200:
+            return jsonify({"error": "subject too long"}), 400
+
+        link = (data.get('link', '') or '').strip()
+        # Разрешаем только http(s) и mailto, всё остальное (javascript: и т.п.) — отсекаем
+        if link and not (link.startswith('http://') or link.startswith('https://') or link.startswith('mailto:')):
+            link = ''
 
         conn.execute(
             "INSERT OR REPLACE INTO subject_settings "
             "(subject, custom_name, link, teacher, location) VALUES (?, ?, ?, ?, ?)",
             (subject,
              data.get('custom_name', '') or '',
-             data.get('link', '') or '',
+             link,
              data.get('teacher', '') or '',
              data.get('location', '') or '')
         )
@@ -508,13 +837,17 @@ def manage_subjects():
         "teacher": row["teacher"],
         "location": row["location"],
     } for row in cursor.fetchall()}
-    return jsonify(settings)
+    resp = jsonify(settings)
+    resp.headers['Cache-Control'] = 'private, max-age=300'
+    return resp
+
 
 # ============================================================
-#  КАСТОМНОЕ РАСПИСАНИЕ (пары и события, добавленные пользователем)
+#  КАСТОМНОЕ РАСПИСАНИЕ
 # ============================================================
 
 @app.route("/api/custom_schedule", methods=["GET", "POST"])
+@limiter.limit("120 per minute")
 def manage_custom_schedule():
     conn = get_db()
 
@@ -524,6 +857,12 @@ def manage_custom_schedule():
         lesson = (data.get('lesson') or '').strip()
         if not group or not lesson:
             return jsonify({"error": "group and lesson required"}), 400
+        if len(lesson) > 200:
+            return jsonify({"error": "lesson too long"}), 400
+        try:
+            group = validate_group(group)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
         cursor = conn.execute(
             "INSERT INTO custom_schedule "
@@ -566,7 +905,9 @@ def manage_custom_schedule():
     } for row in cursor.fetchall()]
     return jsonify(items)
 
+
 @app.route("/api/custom_schedule/<int:item_id>", methods=["PUT", "DELETE"])
+@limiter.limit("120 per minute")
 def update_custom_schedule(item_id):
     conn = get_db()
 
@@ -575,6 +916,8 @@ def update_custom_schedule(item_id):
         lesson = (data.get('lesson') or '').strip()
         if not lesson:
             return jsonify({"error": "lesson required"}), 400
+        if len(lesson) > 200:
+            return jsonify({"error": "lesson too long"}), 400
 
         conn.execute(
             "UPDATE custom_schedule SET base_date=?, time_range=?, lesson=?, "
@@ -598,11 +941,11 @@ def update_custom_schedule(item_id):
     conn.commit()
     return jsonify({"success": True})
 
+
 # ============================================================
 #  ЗАПУСК
 # ============================================================
 
 if __name__ == "__main__":
-    # debug включается явно: FLASK_DEBUG=1 python app.py
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(debug=debug, host="127.0.0.1", port=5000)
