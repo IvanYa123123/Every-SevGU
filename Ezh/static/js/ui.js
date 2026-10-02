@@ -33,10 +33,6 @@ function _ensureLoaderEl() {
         'justify-content:center', 'align-items:center',
         'backdrop-filter:blur(4px)'
     ].join(';');
-    loader.innerHTML = `
-        <div class="spinner-border text-primary" style="width:3rem;height:3rem;" role="status"></div>
-        <div id="loaderText" class="mt-3 fw-bold text-secondary fs-5">Загрузка...</div>
-    `;
     document.body.appendChild(loader);
     return loader;
 }
@@ -140,3 +136,23 @@ function toggleWidget(bodyId, btn) {
         localStorage.setItem('widget_' + bodyId, 'collapsed');
     }
 }
+
+// Вращение и сворачивание ежа при скролле страницы
+let ezhScrollTimer = null;
+window.addEventListener('scroll', () => {
+    const ezh = document.getElementById('ezh-logo');
+    if (ezh) {
+        // Во время скролла: сжимаем (эффект клубка) и крутим пропорционально прокрутке
+        const rotation = window.scrollY; 
+        ezh.style.transition = 'transform 0.1s linear';
+        ezh.style.transform = `rotate(${rotation}deg) scale(0.7)`;
+        
+        // Как только скролл прекращается...
+        clearTimeout(ezhScrollTimer);
+        ezhScrollTimer = setTimeout(() => {
+            // Пружинисто разворачивается и встает обратно на лапки
+            ezh.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            ezh.style.transform = 'rotate(0deg) scale(1)';
+        }, 150);
+    }
+}, { passive: true });
