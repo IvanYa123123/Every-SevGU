@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         initSettings();
+        initSearch();
 
         await ensureGroupsLoaded();
         initGroupAutocomplete(document.getElementById('groupSelect'));

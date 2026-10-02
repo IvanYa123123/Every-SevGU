@@ -53,3 +53,5 @@ async function apiLoadCustomSchedule(g)   { return apiGet(`/api/custom_schedule?
 async function apiCreateCustomSchedule(x) { return apiPost('/api/custom_schedule', x); }
 async function apiUpdateCustomSchedule(id, x) { return apiPut(`/api/custom_schedule/${id}`, x); }
 async function apiDeleteCustomSchedule(id)    { return apiDelete(`/api/custom_schedule/${id}`); }
+async function apiSearch(q)                   { return apiGet(`/api/search?q=${encodeURIComponent(q)}`); }
+async function apiSyncScheduleForce(group, sg){ return apiGet(`/api/schedule_sync?group=${encodeURIComponent(group)}&subgroup=${sg}&force=1`); }

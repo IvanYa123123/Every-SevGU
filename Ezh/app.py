@@ -30,16 +30,12 @@ os.makedirs(SCHEDULES_DIR, exist_ok=True)
 # ============================================================
 #  АУТЕНТИФИКАЦИЯ (опционально, через APP_TOKEN в env)
 # ============================================================
-# Если APP_TOKEN не задан — приложение работает без авторизации (localhost-режим).
-# Если задан — все /api/* (кроме /api/health) требуют заголовок X-Auth-Token
-# или ?token=<значение> в query-строке.
 
 APP_TOKEN = os.environ.get("APP_TOKEN", "").strip()
 _AUTH_EXEMPT_PATHS = {"/", "/api/health"}
 
 
 def _check_auth():
-    """Возвращает True, если запрос авторизован или авторизация отключена."""
     if not APP_TOKEN:
         return True
     token = request.headers.get("X-Auth-Token") or request.args.get("token", "")
@@ -62,8 +58,6 @@ def _enforce_auth():
 # ============================================================
 #  RATE LIMITING
 # ============================================================
-# Ключ — IP клиента. Хранилище — in-memory (для одного воркера).
-# Для gunicorn -w >1 сменить storage_uri на redis://... или memcached://...
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -128,16 +122,7 @@ def _gzip_response(response):
 
 @app.after_request
 def _security_headers(response):
-    """CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy.
-
-    script-src       — nonce для <script> блоков + разрешённый CDN.
-    script-src-attr  — 'unsafe-inline' для inline-обработчиков (onclick="...").
-                       Это отдельная директива CSP3: она управляет ТОЛЬКО
-                       атрибутами, а не <script>-блоками. То есть основной код
-                       остаётся под защитой nonce, а inline-onclick разрешены.
-    """
     nonce = getattr(g, "csp_nonce", "")
-
     csp_parts = [
         "default-src 'self'",
         f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net",
@@ -372,8 +357,6 @@ def _read_groups_txt():
 
 _VALID_SUBGROUPS = frozenset(("0", "1", "2"))
 
-# Группа СевГУ: кириллица/латиница, цифры, дефис, слэш, точка, подчёркивание.
-# Именно эти символы встречаются в Group.txt (например: "ИВТ/б-24-2-о", "ЛД/с-23-1-о-ая").
 _GROUP_RE = re.compile(r'^[A-Za-zА-Яа-яЁё0-9/._\-]{1,64}$')
 
 _FORBIDDEN_CHARS = str.maketrans({
@@ -388,8 +371,6 @@ def validate_subgroup(raw) -> str:
 
 
 def validate_group(raw) -> str:
-    """Валидирует название группы. Возвращает нормализованное значение
-    или бросает ValueError."""
     s = str(raw or "").strip()
     if not s:
         raise ValueError("group required")
@@ -528,7 +509,6 @@ def get_schedule_all():
     safe_group = make_safe_filename(group)
     cache_file = os.path.join(SCHEDULES_DIR, f"{safe_group}_{subgroup}.json")
 
-    # 1. Кэш
     if os.path.exists(cache_file):
         try:
             with open(cache_file, 'r', encoding='utf-8') as f:
@@ -536,7 +516,6 @@ def get_schedule_all():
         except (json.JSONDecodeError, OSError):
             pass
 
-    # 2. Загрузка с сайта
     schedule = planner.get_semester_schedule(group, subgroup)
     if schedule:
         try:
@@ -550,7 +529,7 @@ def get_schedule_all():
 
 
 @app.route("/api/schedule_sync")
-@limiter.limit("10 per minute")  # Жёстко троттлим: каждый вызов бьёт по СевГУ
+@limiter.limit("10 per minute")
 def sync_schedule():
     raw_group = request.args.get('group')
     try:
@@ -719,11 +698,93 @@ def update_task(task_id):
 @app.route("/api/task_dates")
 @limiter.limit("120 per minute")
 def task_dates():
-    """Список уникальных дат, на которые есть хотя бы одна заметка.
-    Используется для навигации 'предыдущая/следующая заметка'."""
     conn = get_db()
     cursor = conn.execute("SELECT DISTINCT date FROM tasks ORDER BY date")
     return jsonify([row["date"] for row in cursor.fetchall()])
+
+
+# ============================================================
+#  ГЛОБАЛЬНЫЙ ПОИСК — чистая Python-фильтрация
+# ============================================================
+#
+#  Почему не SQL: SQLite LOWER()/LIKE по умолчанию case-insensitive только
+#  для ASCII. Кастомные функции через create_function() ведут себя по-разному
+#  на разных сборках. Для персонального дневника (сотни-тысячи записей) Python
+#  `.lower()` и `in` работают мгновенно и без сюрпризов с кириллицей.
+
+_SEARCH_FETCH_LIMIT  = 5000   # сколько строк тянем из каждой таблицы
+_SEARCH_RESULT_LIMIT = 100    # сколько совпадений возвращаем
+
+
+@app.route("/api/search")
+@limiter.limit("240 per minute")
+def search_all():
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({"tasks": [], "events": [], "query": q, "count": 0})
+    if len(q) > 100:
+        q = q[:100]
+
+    q_lower = q.lower()
+    conn = get_db()
+
+    # --- Заметки ---
+    cursor = conn.execute(
+        "SELECT id, date, text, status FROM tasks "
+        "ORDER BY date DESC, id DESC LIMIT ?",
+        (_SEARCH_FETCH_LIMIT,)
+    )
+    tasks = []
+    for r in cursor.fetchall():
+        text = r["text"] or ""
+        if q_lower in text.lower():
+            tasks.append({
+                "id": r["id"],
+                "date": r["date"],
+                "text": text,
+                "status": r["status"],
+            })
+            if len(tasks) >= _SEARCH_RESULT_LIMIT:
+                break
+
+    # --- Кастомное расписание ---
+    cursor = conn.execute(
+        "SELECT id, group_name, base_date, time_range, lesson, type_name, "
+        "       teacher, location, is_event, recurrence "
+        "FROM custom_schedule "
+        "ORDER BY base_date DESC, id DESC LIMIT ?",
+        (_SEARCH_FETCH_LIMIT,)
+    )
+    events = []
+    for r in cursor.fetchall():
+        haystack = " ".join([
+            r["lesson"] or "",
+            r["type_name"] or "",
+            r["teacher"] or "",
+            r["location"] or "",
+        ]).lower()
+        if q_lower in haystack:
+            events.append({
+                "id": r["id"],
+                "group_name": r["group_name"],
+                "base_date": r["base_date"],
+                "time_range": r["time_range"],
+                "lesson": r["lesson"],
+                "type_name": r["type_name"],
+                "teacher": r["teacher"],
+                "location": r["location"],
+                "is_event": r["is_event"],
+                "recurrence": r["recurrence"],
+            })
+            if len(events) >= _SEARCH_RESULT_LIMIT:
+                break
+
+    return jsonify({
+        "tasks": tasks,
+        "events": events,
+        "query": q,
+        "count": len(tasks) + len(events),
+    })
 
 
 # ============================================================
@@ -731,7 +792,6 @@ def task_dates():
 # ============================================================
 
 def _ics_escape(s):
-    """Экранирует спецсимволы для iCalendar-поля."""
     if s is None:
         return ''
     return (str(s)
@@ -743,13 +803,11 @@ def _ics_escape(s):
 
 
 def _stable_uid(*parts):
-    """Стабильный UID — не зависит от PYTHONHASHSEED, в отличие от hash()."""
     s = '|'.join(str(p) for p in parts)
     return hashlib.md5(s.encode('utf-8')).hexdigest()[:16]
 
 
 def _generate_ics(schedule, group_name):
-    """Собирает текст iCalendar из списка пар."""
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -761,7 +819,6 @@ def _generate_ics(schedule, group_name):
 
     dtstamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 
-    # Сортируем по дате, потом по номеру пары
     sorted_sched = sorted(
         schedule,
         key=lambda x: (x.get('date', ''), x.get('n', 0) or 0)
@@ -812,7 +869,6 @@ def _generate_ics(schedule, group_name):
 @app.route("/api/schedule.ics")
 @limiter.limit("30 per minute")
 def export_ics():
-    """Отдаёт расписание группы в формате iCalendar."""
     raw_group = request.args.get('group')
     try:
         group = validate_group(raw_group)
@@ -831,7 +887,6 @@ def export_ics():
         except (json.JSONDecodeError, OSError):
             schedule = []
 
-    # Если кэша нет — сходим за расписанием (и заодно запишем его)
     if not schedule:
         schedule = planner.get_semester_schedule(group, subgroup)
         if schedule:
@@ -944,7 +999,6 @@ def manage_subjects():
             return jsonify({"error": "subject too long"}), 400
 
         link = (data.get('link', '') or '').strip()
-        # Разрешаем только http(s) и mailto, всё остальное (javascript: и т.п.) — отсекаем
         if link and not (link.startswith('http://') or link.startswith('https://') or link.startswith('mailto:')):
             link = ''
 

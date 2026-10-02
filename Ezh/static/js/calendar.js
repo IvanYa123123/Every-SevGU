@@ -92,19 +92,39 @@ async function renderCalendar() {
 
             daySchedule.forEach(item => {
                 let origLesson = item.lesson;
+                // subjectKey — оригинальный ключ для таблицы subject_settings
+                // (вид: "Математика (Лекция)"). По нему же открываются настройки.
                 let subjectKey = item.is_custom ? origLesson : `${item.lesson} (${item.type_name})`;
                 let safeSubjectKey = escapeJsString(subjectKey);
                 let displayLesson = origLesson;
                 let lessonLink = "";
                 let displayTeacher = item.teacher || "";
                 let displayLocation = item.location || "";
+                let customName = '';
 
                 if (!item.is_custom && cachedSubjectSettings[subjectKey]) {
-                    if (cachedSubjectSettings[subjectKey].custom_name) displayLesson = cachedSubjectSettings[subjectKey].custom_name;
+                    if (cachedSubjectSettings[subjectKey].custom_name) {
+                        customName = cachedSubjectSettings[subjectKey].custom_name;
+                        displayLesson = customName;
+                    }
                     if (cachedSubjectSettings[subjectKey].link) lessonLink = cachedSubjectSettings[subjectKey].link;
                     if (cachedSubjectSettings[subjectKey].teacher) displayTeacher = cachedSubjectSettings[subjectKey].teacher;
                     if (cachedSubjectSettings[subjectKey].location) displayLocation = cachedSubjectSettings[subjectKey].location;
                 }
+
+                // Название предмета для текста заметки:
+                //   - для кастомных элементов — как есть,
+                //   - для обычных пар — переименование пользователя (если задано)
+                //     с сохранением типа пары в скобках.
+                let taskSubjectLabel;
+                if (item.is_custom) {
+                    taskSubjectLabel = item.lesson;
+                } else if (customName) {
+                    taskSubjectLabel = `${customName} (${item.type_name})`;
+                } else {
+                    taskSubjectLabel = subjectKey;
+                }
+                let safeTaskSubject = escapeJsString(taskSubjectLabel);
 
                 let lessonHtml = lessonLink
                     ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: #4f46e5;" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
@@ -130,7 +150,7 @@ async function renderCalendar() {
                     <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2; ${customStyle}">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div><strong class="text-primary">${item.time_range}</strong>${typeBadge}${editCustomHtml}</div>
-                            <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', 'Сдать: ${safeSubjectKey}')">+ Заметка</span>
+                            <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', 'Сдать: ${safeTaskSubject}')">+ Заметка</span>
                         </div>
                         <div class="mb-1">${lessonHtml}</div>
                         <div class="d-flex gap-2 flex-wrap">${teacherInfo} ${locInfo}</div>

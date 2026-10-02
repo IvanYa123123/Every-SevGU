@@ -45,8 +45,21 @@
                     <option value="2">2 подгруппа</option>
                 </select>
             </div>
-            <div class="col-md-5 d-flex align-items-center justify-content-end gap-3">
-                <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm" onclick="openSettingsModal()" title="Настройки" style="font-size: 1.1em; padding: 3px 10px;">
+            <div class="col-md-5 d-flex align-items-center justify-content-end gap-2">
+                <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm"
+                        onclick="openSearchModal()" title="Поиск по заметкам и событиям"
+                        style="font-size: 1.1em; padding: 3px 10px;">
+                    🔍
+                </button>
+                <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm"
+                        onclick="manualRefresh()" id="refreshBtn"
+                        title="Принудительно обновить расписание с сервера СевГУ"
+                        style="font-size: 1.1em; padding: 3px 10px;">
+                    <span id="refreshIcon">🔄</span>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm"
+                        onclick="openSettingsModal()" title="Настройки"
+                        style="font-size: 1.1em; padding: 3px 10px;">
                     ⚙️
                 </button>
 
@@ -173,6 +186,27 @@
       </div>
       <div class="modal-footer py-1 border-0">
         <button type="button" class="btn btn-primary btn-sm" onclick="saveFriend()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="searchModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-light">
+        <div class="input-group input-group-sm flex-grow-1">
+          <span class="input-group-text bg-white border-end-0">🔍</span>
+          <input type="text" id="searchInput" class="form-control border-start-0"
+                 placeholder="Поиск по заметкам и событиям..." autocomplete="off">
+        </div>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="searchResults">
+        <div class="text-center text-muted small py-4">Начните вводить запрос (минимум 2 символа)</div>
+      </div>
+      <div class="modal-footer py-1 border-0 justify-content-between">
+        <small class="text-muted">Esc — закрыть</small>
       </div>
     </div>
   </div>
@@ -433,6 +467,8 @@
 <script src="/static/js/custom-schedule.js"></script>
 <script src="/static/js/friends.js"></script>
 <script src="/static/js/widgets.js"></script>
+<script src="/static/js/search.js"></script>
+<script src="/static/js/refresh.js"></script>
 <script src="/static/js/main.js"></script>
 <script src="/static/js/settings.js"></script>
 <script src="/static/js/notifications.js"></script>
