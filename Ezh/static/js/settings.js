@@ -3,6 +3,7 @@
 
 function initSettings() {
     applyTheme();
+    applyWidgetVisibility();
 }
 
 function openSettingsModal() {
@@ -11,6 +12,10 @@ function openSettingsModal() {
     document.getElementById('settingsToggleLocation').checked = showLocation;
     document.getElementById('settingsToggleFriends').checked  = showFriends;
     document.getElementById('settingsToggleStatus').checked   = showStatus;
+
+    document.getElementById('settingsToggleWidgetGlobal').checked = showWidgetGlobal;
+    document.getElementById('settingsToggleWidgetLabs').checked   = showWidgetLabs;
+    document.getElementById('settingsToggleWidgetPacing').checked = showWidgetPacing;
 
     document.getElementById('settingsStatusFormat').value    = statusFormat;
     document.getElementById('settingsStatusPrecision').value = statusPrecision;
@@ -37,6 +42,17 @@ function saveSettingsFromUI() {
     localStorage.setItem('showLocation', showLocation);
     localStorage.setItem('showFriends',  showFriends);
     localStorage.setItem('showStatus',   showStatus);
+
+    // Виджеты
+    showWidgetGlobal = document.getElementById('settingsToggleWidgetGlobal').checked;
+    showWidgetLabs   = document.getElementById('settingsToggleWidgetLabs').checked;
+    showWidgetPacing = document.getElementById('settingsToggleWidgetPacing').checked;
+
+    localStorage.setItem('showWidgetGlobal', showWidgetGlobal);
+    localStorage.setItem('showWidgetLabs',   showWidgetLabs);
+    localStorage.setItem('showWidgetPacing', showWidgetPacing);
+
+    applyWidgetVisibility();
 
     // Статус: формат и точность
     statusFormat = document.getElementById('settingsStatusFormat').value;
@@ -142,4 +158,14 @@ function downloadICS() {
 
     let url = `/api/schedule.ics?group=${encodeURIComponent(group)}&subgroup=${subgroup}`;
     window.location.href = url;
+}
+
+// Показывает / скрывает карточки виджетов в правой колонке.
+function applyWidgetVisibility() {
+    let wg = document.getElementById('widgetGlobalCard');
+    let wl = document.getElementById('widgetLabsCard');
+    let wp = document.getElementById('widgetPacingCard');
+    if (wg) wg.style.display = showWidgetGlobal ? 'block' : 'none';
+    if (wl) wl.style.display = showWidgetLabs   ? 'block' : 'none';
+    if (wp) wp.style.display = showWidgetPacing ? 'block' : 'none';
 }

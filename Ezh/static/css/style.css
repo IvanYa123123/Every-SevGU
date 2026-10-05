@@ -16,12 +16,6 @@ body {
     flex-direction: column;
     border: 1px solid #e2e8f0;
     transition: all 0.3s ease;
-    animation: gridFadeIn 0.3s ease-out;
-}
-
-@keyframes gridFadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
 }
 
 .calendar-grid.has-fullscreen .day-col:not(.fullscreen-day) { display: none !important; }
@@ -92,15 +86,7 @@ body {
     border-right: none;
 }
 
-.day-col.fullscreen-day [id^="schedule-details-"] {
-    animation: scheduleSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes scheduleSlideIn {
-    from { opacity: 0; transform: translateX(18px); }
-    to   { opacity: 1; transform: translateX(0);    }
-}
-
+/* Поочерёдное появление пар в развёрнутом дне (в связке с аккордеоном ниже) */
 .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item { animation: itemFade 0.35s ease backwards; }
 .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(1) { animation-delay: 0.10s; }
 .day-col.fullscreen-day [id^="schedule-details-"] .schedule-item:nth-child(2) { animation-delay: 0.16s; }
@@ -134,6 +120,15 @@ body {
     flex-direction: column;
 }
 .task-card:active { cursor: grabbing; }
+
+/* Pop-in при создании заметки. Вешается из createTask() через { animate: true }. */
+.task-card.task-pop-in {
+    animation: taskPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes taskPopIn {
+    from { opacity: 0; transform: scale(0.85) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
 
 .task-text {
     cursor: pointer;
@@ -378,12 +373,14 @@ body {
     transition: all 0.2s ease-in-out;
 }
 
-/* Эффект "поднятия" карточек при наведении */
-.schedule-item, .task-card, .friend-wrapper, .bg-white.rounded.shadow-sm, .widget-body-wrap {
+/* Эффект "поднятия" карточек при наведении.
+   .schedule-item сюда НЕ входит: он живёт внутри .schedule-details-inner
+   с overflow:hidden, и его тень при hover обрезалась бы родителем. */
+.task-card, .friend-wrapper, .bg-white.rounded.shadow-sm, .widget-body-wrap {
     transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.schedule-item:hover, .task-card:hover, .friend-wrapper:hover, .widget-body-wrap:hover {
+.task-card:hover, .friend-wrapper:hover, .widget-body-wrap:hover {
     transform: translateY(-2px);
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
 }
@@ -400,21 +397,32 @@ body {
     opacity: 1;
 }
 
-/* Плавное раскрытие списка пар (аккордеон) */
-div[id^="schedule-details-"] {
-    animation: slideDownFade 0.3s ease-out;
-    transform-origin: top;
-}
+/* ============================================================
+   Плавный аккордеон дней (раскрытие списка пар)
+   ------------------------------------------------------------
+   grid-template-rows: 0fr → 1fr даёт точный transition по реальной
+   высоте контента. max-height так не умеет: он анимируется линейно
+   и «залипает», если задать его с большим запасом.
 
-@keyframes slideDownFade {
-    from {
-        opacity: 0;
-        transform: translateY(-10px) scaleY(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-    }
+   Требуется обёртка .schedule-details-inner внутри #schedule-details-*:
+     <div id="schedule-details-...">
+         <div class="schedule-details-inner"> ...пары... </div>
+     </div>
+   ============================================================ */
+div[id^="schedule-details-"] {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.25s ease-out;
+}
+div[id^="schedule-details-"].expanded {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+div[id^="schedule-details-"] > .schedule-details-inner {
+    overflow: hidden;
+    min-height: 0;
 }
 
 /* Анимация появления выпадающих меню (Dropdowns) */
@@ -446,4 +454,22 @@ div[id^="schedule-details-"] {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ===== Анимации перелистывания календаря ===== */
+.calendar-grid.slide-right { animation: slideRight 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.calendar-grid.slide-left  { animation: slideLeft  0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.calendar-grid.fade-in     { animation: fadeIn     0.3s  cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+@keyframes slideRight {
+    from { opacity: 0; transform: translateX(30px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideLeft {
+    from { opacity: 0; transform: translateX(-30px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
 }

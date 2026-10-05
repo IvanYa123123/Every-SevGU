@@ -64,7 +64,14 @@ function goToToday() {
 }
 
 function changeWeek(offset) {
+    // Устанавливаем флаг направления. renderCalendar() захватит его
+    // в локальную переменную до первого await и сам обнулит глобальный.
+    window._calDir = offset > 0 ? 'right' : 'left';
+
     currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
     if (expandedDayDateStr !== null) expandedDayDateStr = getLocalDateStr(currentBaseDate);
+
     renderCalendar();
+    // Строку `window._calDir = null;` отсюда УДАЛЯЕМ —
+    // это делает renderCalendar() сразу после захвата.
 }

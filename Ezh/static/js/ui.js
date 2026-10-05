@@ -137,22 +137,31 @@ function toggleWidget(bodyId, btn) {
     }
 }
 
-// Вращение и сворачивание ежа при скролле страницы
+// Вращение и сворачивание ежа при скролле страницы.
+// Угол накапливается по дельте скролла, а при остановке — «прилипает»
+// к ближайшему кратному 360°, чтобы ёжик всегда вставал на лапки.
 let ezhScrollTimer = null;
+let currentEzhRotation = 0;
+let lastScrollY = window.scrollY;
+
 window.addEventListener('scroll', () => {
     const ezh = document.getElementById('ezh-logo');
     if (ezh) {
-        // Во время скролла: сжимаем (эффект клубка) и крутим пропорционально прокрутке
-        const rotation = window.scrollY; 
+        // Вычисляем дельту скролла и крутим ежа в нужную сторону
+        let delta = window.scrollY - lastScrollY;
+        lastScrollY = window.scrollY;
+        currentEzhRotation += delta;
+
         ezh.style.transition = 'transform 0.1s linear';
-        ezh.style.transform = `rotate(${rotation}deg) scale(0.7)`;
-        
-        // Как только скролл прекращается...
+        ezh.style.transform = `rotate(${currentEzhRotation}deg) scale(0.7)`;
+
         clearTimeout(ezhScrollTimer);
         ezhScrollTimer = setTimeout(() => {
-            // Пружинисто разворачивается и встает обратно на лапки
-            ezh.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-            ezh.style.transform = 'rotate(0deg) scale(1)';
+            // Ищем ближайший угол, при котором лапки смотрят вниз (кратный 360)
+            currentEzhRotation = Math.round(currentEzhRotation / 360) * 360;
+            // Пружинисто разворачиваемся и встаем на лапки
+            ezh.style.transition = 'transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            ezh.style.transform = `rotate(${currentEzhRotation}deg) scale(1)`;
         }, 150);
     }
 }, { passive: true });

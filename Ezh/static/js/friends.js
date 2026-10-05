@@ -330,7 +330,10 @@ async function deleteFriend(id) {
     } catch (e) { console.error("Ошибка при удалении друга", e); }
 }
 
-function renderFriendsCalendar() {
+// dir — направление анимации: 'right' | 'left' | null.
+// Передаётся из renderCalendar(), чтобы друзья скользили ровно так же,
+// как и основная сетка, в тот же момент времени.
+function renderFriendsCalendar(dir = null) {
     let container = document.getElementById("friendsCalendarsContainer");
     if (!container) return;
     container.innerHTML = "";
@@ -346,6 +349,8 @@ function renderFriendsCalendar() {
     }
 
     if (!friendsList || friendsList.length === 0) return;
+
+    let realTodayStr = getLocalDateStr(new Date()); // Для подсветки сегодняшнего дня
 
     friendsList.forEach(friend => {
         if (!visibleFriends.has(friend.id)) return;
@@ -396,8 +401,15 @@ function renderFriendsCalendar() {
         `;
         wrapper.appendChild(header);
 
+        // Сетка друга — анимация ровно та же, что у основного календаря
         let grid = document.createElement('div');
         grid.className = "calendar-grid w-100";
+
+        grid.classList.remove('slide-left', 'slide-right', 'fade-in');
+        void grid.offsetWidth; // force reflow
+        if (dir === 'right')      grid.classList.add('slide-right');
+        else if (dir === 'left')  grid.classList.add('slide-left');
+        else                      grid.classList.add('fade-in');
 
         for (let i = 0; i < 7; i++) {
             let d = new Date(currentBaseDate); d.setDate(d.getDate() + i);
@@ -409,7 +421,9 @@ function renderFriendsCalendar() {
             let myDaySchedule = cachedSchedule.filter(item => item.date === dateStr);
             myDaySchedule.sort((a, b) => a.n - b.n);
 
-            let html = `<div class="friend-col"><div class="friend-day-header">${displayDate}</div>`;
+            // Проверяем, является ли колонка сегодняшним днем
+            let isTodayClass = (dateStr === realTodayStr) ? " day-today" : "";
+            let html = `<div class="friend-col${isTodayClass}"><div class="friend-day-header">${displayDate}</div>`;
 
             if (daySchedule.length > 0) {
                 let fStart = fixTime(daySchedule[0].time_range.split(' - ')[0]);

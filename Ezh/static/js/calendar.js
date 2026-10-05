@@ -41,15 +41,31 @@ function getCustomItemsForDate(dateStr) {
 }
 
 async function renderCalendar() {
+    // Захватываем направление ДО первого await и обнуляем глобальный флаг.
+    const calDir = window._calDir;
+    window._calDir = null;
+
+    // Сохраняем раскрытые дни по классу .expanded (раньше — по style.display)
     let openDays = new Set();
     document.querySelectorAll('div[id^="schedule-details-"]').forEach(el => {
-        if (el.style.display !== "none") openDays.add(el.id.replace('schedule-details-', ''));
+        if (el.classList.contains('expanded')) {
+            openDays.add(el.id.replace('schedule-details-', ''));
+        }
     });
 
     updateWeekDropdown();
 
     const cal = document.getElementById("calendar");
     if (!cal) return;
+
+    // --- Анимация перелистывания всей сетки ---
+    cal.classList.remove('slide-left', 'slide-right', 'fade-in');
+    void cal.offsetWidth;
+    if (calDir === 'right')      cal.classList.add('slide-right');
+    else if (calDir === 'left')  cal.classList.add('slide-left');
+    else                         cal.classList.add('fade-in');
+    // ------------------------------------------
+
     cal.innerHTML = "";
 
     let startStr = getLocalDateStr(currentBaseDate);
@@ -80,14 +96,15 @@ async function renderCalendar() {
             let startTime = fixTime(daySchedule[0].time_range.split(' - ')[0]);
             let endTime = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
             let isExpanded = openDays.has(dateStr);
-            let detailsStyle = isExpanded ? 'display: block;' : 'display: none;';
+            let expandedClass = isExpanded ? ' expanded' : '';
             let arrowIcon = isExpanded ? '▲' : '▼';
 
             scheduleHtml += `
                 <div class="schedule-summary shadow-sm" onclick="toggleSchedule('${dateStr}')">
                     🕒 Пары: ${startTime} - ${endTime} <span id="arrow-${dateStr}">${arrowIcon}</span>
                 </div>
-                <div id="schedule-details-${dateStr}" style="${detailsStyle}">
+                <div id="schedule-details-${dateStr}"${expandedClass}>
+                    <div class="schedule-details-inner">
             `;
 
             daySchedule.forEach(item => {
@@ -157,7 +174,7 @@ async function renderCalendar() {
                     </div>
                 `;
             });
-            scheduleHtml += `</div>`;
+            scheduleHtml += `</div></div>`;
         }
 
         cal.innerHTML += `
@@ -210,7 +227,8 @@ async function renderCalendar() {
         tasks.forEach(t => renderTask(t));
     } catch (e) { console.error("Tasks load error", e); }
 
-    renderFriendsCalendar();
+    // Передаём захваченное направление в календари друзей
+    renderFriendsCalendar(calDir);
 
     if (expandedDayDateStr) {
         let grid = document.querySelector('.calendar-grid');
@@ -222,7 +240,7 @@ async function renderCalendar() {
             if (btn) btn.textContent = "Свернуть";
             let details = document.getElementById(`schedule-details-${expandedDayDateStr}`);
             let arrow   = document.getElementById(`arrow-${expandedDayDateStr}`);
-            if (details) details.style.display = "block";
+            if (details) details.classList.add('expanded');
             if (arrow) arrow.textContent = "▲";
             rebalanceDayText(expandedDayDateStr);
             updateNavButtonsState(expandedDayDateStr);
@@ -235,11 +253,9 @@ async function renderCalendar() {
 function toggleSchedule(dateStr) {
     let details = document.getElementById(`schedule-details-${dateStr}`);
     let arrow = document.getElementById(`arrow-${dateStr}`);
-    if (details.style.display === "none") {
-        details.style.display = "block"; arrow.textContent = "▲";
-    } else {
-        details.style.display = "none"; arrow.textContent = "▼";
-    }
+    if (!details) return;
+    const nowExpanded = details.classList.toggle('expanded');
+    if (arrow) arrow.textContent = nowExpanded ? '▲' : '▼';
 }
 
 function toggleExpandDay(dateStr) {
@@ -262,7 +278,7 @@ function toggleExpandDay(dateStr) {
         expandedDayDateStr = null;
         let details = document.getElementById(`schedule-details-${dateStr}`);
         let arrow   = document.getElementById(`arrow-${dateStr}`);
-        if (details) details.style.display = "none";
+        if (details) details.classList.remove('expanded');
         if (arrow)   arrow.textContent = "▼";
         rebalanceDayText(dateStr);
     } else {
@@ -272,12 +288,7 @@ function toggleExpandDay(dateStr) {
         expandedDayDateStr = dateStr;
         let details = document.getElementById(`schedule-details-${dateStr}`);
         let arrow   = document.getElementById(`arrow-${dateStr}`);
-        if (details) {
-            details.style.display = "block";
-            details.style.animation = 'none';
-            void details.offsetWidth;
-            details.style.animation = '';
-        }
+        if (details) details.classList.add('expanded');
         if (arrow) arrow.textContent = "▲";
         setTimeout(() => updateNavButtonsState(dateStr), 70);
         setTimeout(() => scrollToCol(true), 60);

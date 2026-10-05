@@ -40,11 +40,15 @@ async function createTask(date, text, status) {
     try {
         let data = await apiCreateTask({date, text, status});
         taskDatesSet.add(date);
-        renderTask({id: data.id, date, text, status});
+        // Новые заметки появляются с pop-in. Все остальные вызовы renderTask
+        // (переключение цвета, drag-n-drop, первичная загрузка) — без анимации,
+        // чтобы карточки не дёргались при каждом обновлении.
+        renderTask({id: data.id, date, text, status}, { animate: true });
     } catch (e) { console.error("createTask failed", e); }
 }
 
-function renderTask(task) {
+function renderTask(task, options = {}) {
+    const { animate = false } = options;
     const container = document.getElementById(`tasks-${task.date}`);
     if (!container) return;
 
@@ -53,6 +57,7 @@ function renderTask(task) {
 
     let div = document.createElement('div');
     div.className = `task-card status-${task.status}`;
+    if (animate) div.classList.add('task-pop-in');
     div.id = `task-${task.id}`;
     div.draggable = true;
 
@@ -101,15 +106,34 @@ function updateTaskRequest(task) {
 
 function handleTaskDeleteClick(task) {
     if (task.status !== 'completed') {
+        // Первый клик: помечаем выполненной. Полная перерисовка карточки —
+        // это не «удаление», анимация удаления тут не нужна.
         task.status = 'completed';
         updateTaskRequest(task);
     } else {
-        document.getElementById(`task-${task.id}`).remove();
+        // Второй клик: настоящее удаление — плавно сжимаем и убираем.
+        const el = document.getElementById(`task-${task.id}`);
+        if (!el) return;
+        animateTaskRemoval(el, () => rebalanceDayText(task.date));
         apiDeleteTask(task.id)
             .then(() => refreshTaskDates())
             .catch(e => console.error(e));
-        rebalanceDayText(task.date);
     }
+}
+
+// Плавное «сжатие в точку» перед удалением DOM-узла.
+// Колбэк (rebalanceDayText) вызывается ПОСЛЕ удаления, чтобы соседние
+// карточки успели пересчитаться уже без уходящей.
+function animateTaskRemoval(el, onDone) {
+    el.style.pointerEvents = 'none';
+    el.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+    void el.offsetWidth;                // force reflow — чтобы transition реально запустился
+    el.style.opacity = '0';
+    el.style.transform = 'scale(0.85)';
+    setTimeout(() => {
+        el.remove();
+        if (typeof onDone === 'function') onDone();
+    }, 200);
 }
 
 function toggleColor(id, currentStatus) {

@@ -118,9 +118,9 @@
 
         <div class="col-xl-3 col-lg-4">
             <div class="sticky-top d-flex flex-column gap-3" style="top: 15px;">
-                <div class="bg-white rounded shadow-sm border p-3">
+                <div class="bg-white rounded shadow-sm border p-3" id="widgetGlobalCard">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Общие пары</h6>
+                        <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Остаток пар</h6>
                         <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('globalStatsBody', this)">−</button>
                     </div>
                     <div id="globalStatsBody" class="widget-body-wrap" style="height: 160px; cursor:pointer;" onclick="showStats()">
@@ -128,7 +128,7 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded shadow-sm border p-3">
+                <div class="bg-white rounded shadow-sm border p-3" id="widgetLabsCard">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showLabs()">Лабораторные</h6>
                         <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="toggleWidget('labStatsBody', this)">−</button>
@@ -138,7 +138,7 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded shadow-sm border p-3">
+                <div class="bg-white rounded shadow-sm border p-3" id="widgetPacingCard">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
                             <h6 class="mb-0 fw-bold">Темп сдачи лаб</h6>
@@ -393,6 +393,21 @@
         <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" id="settingsToggleFriends" onchange="saveSettingsFromUI()">
             <label class="form-check-label small fw-bold" for="settingsToggleFriends">Подробные пары друзей</label>
+        </div>
+
+        <hr class="my-3">
+        <div class="settings-section-title">Виджеты</div>
+        <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="settingsToggleWidgetGlobal" onchange="saveSettingsFromUI()">
+            <label class="form-check-label small fw-bold" for="settingsToggleWidgetGlobal">Остаток пар</label>
+        </div>
+        <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="settingsToggleWidgetLabs" onchange="saveSettingsFromUI()">
+            <label class="form-check-label small fw-bold" for="settingsToggleWidgetLabs">Лабораторные</label>
+        </div>
+        <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="settingsToggleWidgetPacing" onchange="saveSettingsFromUI()">
+            <label class="form-check-label small fw-bold" for="settingsToggleWidgetPacing">Темп сдачи лаб</label>
         </div>
 
         <hr class="my-3">

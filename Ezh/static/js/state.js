@@ -61,3 +61,8 @@ let loaderInterval = null;
 function saveVisibleFriends() {
     localStorage.setItem('visibleFriends', JSON.stringify([...visibleFriends]));
 }
+
+// Настройки видимости виджетов
+let showWidgetGlobal = localStorage.getItem('showWidgetGlobal') !== 'false';
+let showWidgetLabs   = localStorage.getItem('showWidgetLabs')   !== 'false';
+let showWidgetPacing = localStorage.getItem('showWidgetPacing') !== 'false';
