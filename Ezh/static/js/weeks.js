@@ -1,4 +1,16 @@
 // Навигация по неделям: dropdown, "Сегодня", стрелки, дельта-переход.
+// В дропдауне рядом с датой — бейдж чётности (Ч / НЧ), считается по ISO-номеру недели.
+
+function _weekParityLabel(weekDate) {
+    const d = new Date(Date.UTC(weekDate.getFullYear(), weekDate.getMonth(), weekDate.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return weekNo % 2 === 0
+        ? { label: 'Ч', cls: 'week-even', title: `Чётная (нед. ${weekNo})` }
+        : { label: 'НЧ', cls: 'week-odd',  title: `Нечётная (нед. ${weekNo})` };
+}
 
 function updateWeekDropdown() {
     let menu = document.getElementById("weekDropdownMenu");
@@ -22,11 +34,15 @@ function updateWeekDropdown() {
         let label = `${d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endD.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
         if (i === 0) label = `🏠 Текущая: ${label}`;
 
+        const parity = _weekParityLabel(d);
+
         let li = document.createElement('li');
         let a = document.createElement('a');
-        a.className = 'dropdown-item' + (i === currentOffset ? ' active' : '');
+        a.className = 'dropdown-item week-item' + (i === currentOffset ? ' active' : '');
         a.href = '#';
-        a.textContent = label;
+        a.title = parity.title;
+        a.innerHTML = `<span class="week-item-label">${label}</span>
+                       <span class="week-badge ${parity.cls}">${parity.label}</span>`;
         a.onclick = (e) => { e.preventDefault(); jumpToWeek(i); };
         li.appendChild(a);
         menu.appendChild(li);
@@ -36,7 +52,8 @@ function updateWeekDropdown() {
     dBtn.setDate(dBtn.getDate() + (currentOffset * 7));
     let endDBtn = new Date(dBtn);
     endDBtn.setDate(endDBtn.getDate() + 6);
-    btn.textContent = `📅 ${dBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endDBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})}`;
+    const btnParity = _weekParityLabel(dBtn);
+    btn.innerHTML = `📅 ${dBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} - ${endDBtn.toLocaleDateString('ru-RU', {day:'numeric', month:'short'})} <span class="week-badge ${btnParity.cls}">${btnParity.label}</span>`;
 
     btn.addEventListener('shown.bs.dropdown', () => {
         setTimeout(() => {
@@ -53,6 +70,7 @@ function jumpToWeek(offsetVal) {
     currentBaseDate.setDate(currentBaseDate.getDate() + (parseInt(offsetVal) * 7));
     if (expandedDayDateStr !== null) expandedDayDateStr = getLocalDateStr(currentBaseDate);
     renderCalendar();
+    if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
 }
 
 function goToToday() {
@@ -61,17 +79,13 @@ function goToToday() {
     currentBaseDate.setDate(currentBaseDate.getDate() - (currentBaseDate.getDay() === 0 ? 6 : currentBaseDate.getDay() - 1));
     if (expandedDayDateStr !== null) expandedDayDateStr = realTodayStr;
     renderCalendar();
+    if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
 }
 
 function changeWeek(offset) {
-    // Устанавливаем флаг направления. renderCalendar() захватит его
-    // в локальную переменную до первого await и сам обнулит глобальный.
     window._calDir = offset > 0 ? 'right' : 'left';
-
     currentBaseDate.setDate(currentBaseDate.getDate() + (offset * 7));
     if (expandedDayDateStr !== null) expandedDayDateStr = getLocalDateStr(currentBaseDate);
-
     renderCalendar();
-    // Строку `window._calDir = null;` отсюда УДАЛЯЕМ —
-    // это делает renderCalendar() сразу после захвата.
+    if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
 }

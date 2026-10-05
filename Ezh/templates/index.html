@@ -4,8 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ежедневник СевГУ</title>
+
+    <script nonce="{{ csp_nonce }}">
+    (function () {
+        try {
+            var t = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-bs-theme', t === 'dark' ? 'dark' : 'light');
+            if (t === 'custom') {
+                var raw = localStorage.getItem('customTheme');
+                if (raw) {
+                    var d = JSON.parse(raw);
+                    if (d && d.colors) {
+                        for (var k in d.colors) {
+                            document.documentElement.style.setProperty(k, d.colors[k]);
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+    })();
+    </script>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Caveat:wght@600;700&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
     <link href="/static/css/style.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
@@ -18,6 +41,11 @@
     </div>
 </div>
 
+<div id="undoBar" style="display: none;">
+    <span id="undoBarText">Заметка удалена</span>
+    <button type="button" id="undoBarBtn">Отменить</button>
+</div>
+
 <div id="globalLoader" style="display: none;">
     <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
     <div id="loaderText" class="mt-3 fw-bold text-secondary fs-5">Загрузка...</div>
@@ -27,7 +55,7 @@
     <div class="controls-header bg-white p-2 rounded shadow-sm border mb-3">
         <div class="row align-items-center">
             <div class="col-md-2">
-                <h5 class="mb-0 fw-bold d-flex align-items-center" style="color: #6366f1; letter-spacing: -0.5px;">
+                <h5 class="mb-0 fw-bold d-flex align-items-center brand-title" style="color: var(--accent); letter-spacing: -0.5px;">
                     <span id="ezh-logo" style="font-size: 2.2rem; line-height: 0.5; margin-right: 0px; margin-left: -5px; display: inline-block; transition: transform 0.05s linear; transform-origin: center;">🦔</span>
                     <span>дневник</span>
                 </h5>
@@ -35,7 +63,7 @@
             <div class="col-md-3">
                 <div class="input-group input-group-sm">
                     <input type="text" id="groupSelect" class="form-control" placeholder="Начните вводить группу..." autocomplete="off">
-                    <button class="btn btn-primary" style="background-color: #6366f1; border: none;" onclick="fetchSemesterData()">Найти</button>
+                    <button class="btn btn-primary" onclick="fetchSemesterData()">Найти</button>
                 </div>
             </div>
             <div class="col-md-2">
@@ -48,9 +76,7 @@
             <div class="col-md-5 d-flex align-items-center justify-content-end gap-2">
                 <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm"
                         onclick="openSearchModal()" title="Поиск по заметкам и событиям"
-                        style="font-size: 1.1em; padding: 3px 10px;">
-                    🔍
-                </button>
+                        style="font-size: 1.1em; padding: 3px 10px;">🔍</button>
                 <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm"
                         onclick="manualRefresh()" id="refreshBtn"
                         title="Принудительно обновить расписание с сервера СевГУ"
@@ -59,9 +85,7 @@
                 </button>
                 <button class="btn btn-outline-secondary btn-sm fw-bold shadow-sm"
                         onclick="openSettingsModal()" title="Настройки"
-                        style="font-size: 1.1em; padding: 3px 10px;">
-                    ⚙️
-                </button>
+                        style="font-size: 1.1em; padding: 3px 10px;">⚙️</button>
 
                 <button class="btn btn-outline-primary btn-sm fw-bold shadow-sm" onclick="goToToday()">Сегодня</button>
                 <div class="dropdown">
@@ -73,7 +97,8 @@
             </div>
         </div>
         <div class="row">
-            <div class="col-12 text-center small schedule-status" id="scheduleStatus"></div>
+            <div class="col-6 text-start small schedule-status" id="scheduleStatus"></div>
+            <div class="col-6 text-end small sync-freshness" id="syncFreshness"></div>
         </div>
     </div>
 
@@ -118,6 +143,20 @@
 
         <div class="col-xl-3 col-lg-4">
             <div class="sticky-top d-flex flex-column gap-3" style="top: 15px;">
+
+                <!-- Мини-календарь -->
+                <div class="bg-white rounded shadow-sm border p-3" id="widgetMiniCalCard">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 fw-bold">📅 <span id="miniCalendarTitle">—</span></h6>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="miniCalPrevMonth()" title="Предыдущий месяц">‹</button>
+                            <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="miniCalToday()" title="К текущему месяцу">●</button>
+                            <button class="btn btn-sm btn-light py-0 px-2 fw-bold" onclick="miniCalNextMonth()" title="Следующий месяц">›</button>
+                        </div>
+                    </div>
+                    <div id="miniCalendarBody" class="mini-calendar"></div>
+                </div>
+
                 <div class="bg-white rounded shadow-sm border p-3" id="widgetGlobalCard">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="mb-0 fw-bold w-100" style="cursor:pointer;" onclick="showStats()">Остаток пар</h6>
@@ -163,26 +202,18 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-3">
-            <label class="form-label small">Имя (или ник)</label>
-            <input type="text" id="friendName" class="form-control form-control-sm">
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Группа</label>
-            <input type="text" id="friendGroup" class="form-control form-control-sm" placeholder="Начните вводить..." autocomplete="off">
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Подгруппа</label>
+        <div class="mb-3"><label class="form-label small">Имя (или ник)</label>
+            <input type="text" id="friendName" class="form-control form-control-sm"></div>
+        <div class="mb-3"><label class="form-label small">Группа</label>
+            <input type="text" id="friendGroup" class="form-control form-control-sm" placeholder="Начните вводить..." autocomplete="off"></div>
+        <div class="mb-3"><label class="form-label small">Подгруппа</label>
             <select id="friendSubgroup" class="form-select form-select-sm">
                 <option value="0">Все подгруппы</option>
                 <option value="1">1 подгруппа</option>
                 <option value="2">2 подгруппа</option>
-            </select>
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Папка (группировка)</label>
-            <select id="friendCategory" class="form-control form-control-sm" onchange="handleCategorySelect(this)"></select>
-        </div>
+            </select></div>
+        <div class="mb-3"><label class="form-label small">Папка (группировка)</label>
+            <select id="friendCategory" class="form-control form-control-sm" onchange="handleCategorySelect(this)"></select></div>
       </div>
       <div class="modal-footer py-1 border-0">
         <button type="button" class="btn btn-primary btn-sm" onclick="saveFriend()">Сохранить</button>
@@ -244,10 +275,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <input type="hidden" id="csId">
-        <input type="hidden" id="csBaseDate">
-        <input type="hidden" id="csTargetDate">
-
+        <input type="hidden" id="csId"><input type="hidden" id="csBaseDate"><input type="hidden" id="csTargetDate">
         <div class="mb-3 d-flex gap-3">
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="csType" id="csTypeEvent" value="1" checked onchange="toggleCsFields()">
@@ -258,19 +286,13 @@
                 <label class="form-check-label small fw-bold" for="csTypeClass">Пара</label>
             </div>
         </div>
-
         <div class="mb-3">
             <label class="form-label small">Время</label>
             <div class="d-flex align-items-center gap-2">
                 <select id="csClassNum" class="form-select form-select-sm" onchange="updateTimeFromClassNum()" style="display: none; min-width: 130px;">
-                    <option value="1">1 пара</option>
-                    <option value="2">2 пара</option>
-                    <option value="3">3 пара</option>
-                    <option value="4">4 пара</option>
-                    <option value="5">5 пара</option>
-                    <option value="6">6 пара</option>
-                    <option value="7">7 пара</option>
-                    <option value="8">8 пара</option>
+                    <option value="1">1 пара</option><option value="2">2 пара</option><option value="3">3 пара</option>
+                    <option value="4">4 пара</option><option value="5">5 пара</option><option value="6">6 пара</option>
+                    <option value="7">7 пара</option><option value="8">8 пара</option>
                 </select>
                 <div id="csTimeWrapper" class="d-flex align-items-center gap-2 w-100">
                     <input type="time" id="csTimeStart" class="form-control form-control-sm" required>
@@ -279,27 +301,16 @@
                 </div>
             </div>
         </div>
-
-        <div class="mb-3">
-            <label class="form-label small" id="csLessonLabel">Текст события</label>
-            <input type="text" id="csLesson" class="form-control form-control-sm" placeholder="Название...">
-        </div>
-
+        <div class="mb-3"><label class="form-label small" id="csLessonLabel">Текст события</label>
+            <input type="text" id="csLesson" class="form-control form-control-sm" placeholder="Название..."></div>
         <div id="csClassFields" style="display: none;">
-            <div class="mb-3">
-                <label class="form-label small">Тип пары (Лекция, ПЗ, ЛЗ)</label>
-                <input type="text" id="csTypeName" class="form-control form-control-sm" placeholder="ПЗ">
-            </div>
-            <div class="mb-3">
-                <label class="form-label small">Преподаватель</label>
-                <input type="text" id="csTeacher" class="form-control form-control-sm" placeholder="ФИО">
-            </div>
-            <div class="mb-3">
-                <label class="form-label small">Аудитория</label>
-                <input type="text" id="csLocation" class="form-control form-control-sm" placeholder="Ауд...">
-            </div>
+            <div class="mb-3"><label class="form-label small">Тип пары (Лекция, ПЗ, ЛЗ)</label>
+                <input type="text" id="csTypeName" class="form-control form-control-sm" placeholder="ПЗ"></div>
+            <div class="mb-3"><label class="form-label small">Преподаватель</label>
+                <input type="text" id="csTeacher" class="form-control form-control-sm" placeholder="ФИО"></div>
+            <div class="mb-3"><label class="form-label small">Аудитория</label>
+                <input type="text" id="csLocation" class="form-control form-control-sm" placeholder="Ауд..."></div>
         </div>
-
         <div class="mb-3">
             <label class="form-label small">Повторение</label>
             <select id="csRecurrence" class="form-select form-select-sm">
@@ -344,26 +355,16 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="origSubjectName">
-        <div class="mb-3">
-            <label class="form-label small">Оригинальное название</label>
-            <div id="subjectOrigNameDisplay" class="text-muted small fw-bold mb-2"></div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Свое название (оставьте пустым для оригинала)</label>
-            <input type="text" id="subjectCustomName" class="form-control form-control-sm" placeholder="Например: Матеша">
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Глобальное ФИО преподавателя</label>
-            <input type="text" id="subjectTeacher" class="form-control form-control-sm" placeholder="Иванов И.И.">
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Глобальная аудитория</label>
-            <input type="text" id="subjectLocation" class="form-control form-control-sm" placeholder="Ауд. I-416">
-        </div>
-        <div class="mb-3">
-            <label class="form-label small">Ссылка (Moodle, Zoom, и др.)</label>
-            <input type="url" id="subjectLink" class="form-control form-control-sm" placeholder="https://...">
-        </div>
+        <div class="mb-3"><label class="form-label small">Оригинальное название</label>
+            <div id="subjectOrigNameDisplay" class="text-muted small fw-bold mb-2"></div></div>
+        <div class="mb-3"><label class="form-label small">Свое название (оставьте пустым для оригинала)</label>
+            <input type="text" id="subjectCustomName" class="form-control form-control-sm" placeholder="Например: Матеша"></div>
+        <div class="mb-3"><label class="form-label small">Глобальное ФИО преподавателя</label>
+            <input type="text" id="subjectTeacher" class="form-control form-control-sm" placeholder="Иванов И.И."></div>
+        <div class="mb-3"><label class="form-label small">Глобальная аудитория</label>
+            <input type="text" id="subjectLocation" class="form-control form-control-sm" placeholder="Ауд. I-416"></div>
+        <div class="mb-3"><label class="form-label small">Ссылка (Moodle, Zoom, и др.)</label>
+            <input type="url" id="subjectLink" class="form-control form-control-sm" placeholder="https://..."></div>
       </div>
       <div class="modal-footer py-1 border-0">
         <button type="button" class="btn btn-primary btn-sm" onclick="saveSubjectSettings()">Сохранить</button>
@@ -373,7 +374,7 @@
 </div>
 
 <div class="modal fade" id="settingsModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content border-0 shadow">
       <div class="modal-header py-2 bg-light">
         <h6 class="modal-title fw-bold">⚙️ Настройки</h6>
@@ -381,70 +382,109 @@
       </div>
       <div class="modal-body">
 
-        <div class="settings-section-title">Отображение пар</div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleTeacher" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleTeacher">ФИО преподавателей</label>
-        </div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleLocation" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleLocation">Номера аудиторий</label>
-        </div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleFriends" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleFriends">Подробные пары друзей</label>
-        </div>
-
-        <hr class="my-3">
-        <div class="settings-section-title">Виджеты</div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleWidgetGlobal" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleWidgetGlobal">Остаток пар</label>
-        </div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleWidgetLabs" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleWidgetLabs">Лабораторные</label>
-        </div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleWidgetPacing" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleWidgetPacing">Темп сдачи лаб</label>
+        <div class="collapsible-section">
+            <button type="button" class="collapsible-header" onclick="toggleSettingsSection('display')">
+                <span>Отображение пар</span>
+                <span class="collapsible-arrow" id="settings-arrow-display">▸</span>
+            </button>
+            <div id="settings-section-display" class="collapsible-body" style="display: none;">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleTeacher" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleTeacher">ФИО преподавателей</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleLocation" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleLocation">Номера аудиторий</label>
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleFriends" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleFriends">Подробные пары друзей</label>
+                </div>
+            </div>
         </div>
 
-        <hr class="my-3">
-        <div class="settings-section-title">Статус-строка</div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsToggleStatus" onchange="saveSettingsFromUI()">
-            <label class="form-check-label small fw-bold" for="settingsToggleStatus">Показывать «до / во время / после пар»</label>
+        <div class="collapsible-section">
+            <button type="button" class="collapsible-header" onclick="toggleSettingsSection('widgets')">
+                <span>Виджеты</span>
+                <span class="collapsible-arrow" id="settings-arrow-widgets">▸</span>
+            </button>
+            <div id="settings-section-widgets" class="collapsible-body" style="display: none;">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleWidgetMiniCal" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleWidgetMiniCal">Мини-календарь</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleWidgetGlobal" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleWidgetGlobal">Остаток пар</label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleWidgetLabs" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleWidgetLabs">Лабораторные</label>
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleWidgetPacing" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleWidgetPacing">Темп сдачи лаб</label>
+                </div>
+            </div>
         </div>
 
-        <div class="mt-2">
-            <label class="small text-muted mb-1 d-block">Формат</label>
-            <select class="form-select form-select-sm mb-2" id="settingsStatusFormat" onchange="saveSettingsFromUI()">
-                <option value="interval">интервал</option>
-                <option value="both">интервал + время</option>
-                <option value="time">время</option>
-            </select>
+        <div class="collapsible-section">
+            <button type="button" class="collapsible-header" onclick="toggleSettingsSection('status')">
+                <span>Статус-строка</span>
+                <span class="collapsible-arrow" id="settings-arrow-status">▸</span>
+            </button>
+            <div id="settings-section-status" class="collapsible-body" style="display: none;">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsToggleStatus" onchange="saveSettingsFromUI()">
+                    <label class="form-check-label small fw-bold" for="settingsToggleStatus">Показывать «до / во время / после пар»</label>
+                </div>
+                <div class="mt-2">
+                    <label class="small text-muted mb-1 d-block">Формат</label>
+                    <select class="form-select form-select-sm mb-2" id="settingsStatusFormat" onchange="saveSettingsFromUI()">
+                        <option value="interval">интервал</option>
+                        <option value="both">интервал + время</option>
+                        <option value="time">время</option>
+                    </select>
 
-            <label class="small text-muted mb-1 d-block">Точность интервала</label>
-            <select class="form-select form-select-sm" id="settingsStatusPrecision" onchange="saveSettingsFromUI()">
-                <option value="min">до минуты</option>
-                <option value="sec">до секунды</option>
-                <option value="cs">до сотых</option>
-            </select>
+                    <label class="small text-muted mb-1 d-block">Точность интервала</label>
+                    <select class="form-select form-select-sm" id="settingsStatusPrecision" onchange="saveSettingsFromUI()">
+                        <option value="min">до минуты</option>
+                        <option value="sec">до секунды</option>
+                        <option value="cs">до сотых</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
-        <hr class="my-3">
-        <div class="settings-section-title">Уведомления о парах</div>
-        <div class="form-check form-switch mb-2">
-            <input class="form-check-input" type="checkbox" id="settingsNotifEnabled" onchange="handleNotificationsToggle(this)">
-            <label class="form-check-label small fw-bold" for="settingsNotifEnabled">Включить уведомления</label>
+        <div class="collapsible-section">
+            <button type="button" class="collapsible-header" onclick="toggleSettingsSection('notif')">
+                <span>Уведомления о событиях</span>
+                <span class="collapsible-arrow" id="settings-arrow-notif">▸</span>
+            </button>
+            <div id="settings-section-notif" class="collapsible-body" style="display: none;">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="settingsNotifEnabled" onchange="handleNotificationsToggle(this)">
+                    <label class="form-check-label small fw-bold" for="settingsNotifEnabled">Включить уведомления</label>
+                </div>
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                    <label class="small text-muted mb-0" for="settingsNotifAdvance">За</label>
+                    <input type="number" id="settingsNotifAdvance" class="form-control form-control-sm"
+                           style="width: 70px;" min="1" max="60" onchange="saveSettingsFromUI()">
+                    <select id="settingsNotifUnit" class="form-select form-select-sm"
+                            style="width: auto; max-width: 120px;" onchange="saveSettingsFromUI()">
+                        <option value="min">минут</option>
+                        <option value="hour">часов</option>
+                        <option value="day">дней</option>
+                        <option value="week">недель</option>
+                    </select>
+                    <span class="small text-muted">до начала</span>
+                </div>
+                <div class="small text-muted mb-2" style="line-height: 1.3;">
+                    Уведомления приходят как о парах из расписания, так и о ваших событиях.
+                </div>
+                <div id="settingsNotifHint" class="small text-muted" style="display: none; line-height: 1.3;"></div>
+            </div>
         </div>
-        <div class="d-flex align-items-center gap-2 mb-2">
-            <label class="small text-muted mb-0" for="settingsNotifMinutes">За</label>
-            <input type="number" id="settingsNotifMinutes" class="form-control form-control-sm" style="width: 80px;" min="1" max="120" onchange="saveSettingsFromUI()">
-            <span class="small text-muted">минут до пары</span>
-        </div>
-        <div id="settingsNotifHint" class="small text-muted" style="display: none; line-height: 1.3;"></div>
 
         <hr class="my-3">
         <div class="settings-section-title">Экспорт</div>
@@ -458,9 +498,137 @@
         <hr class="my-3">
         <div class="settings-section-title">Тема</div>
         <select class="form-select form-select-sm" id="settingsTheme" onchange="saveSettingsFromUI()">
-            <option value="light">Светлая</option>
-            <option value="dark" disabled>Тёмная (скоро)</option>
+            <optgroup label="Базовые">
+                <option value="light">☀️ Светлая</option>
+                <option value="dark">🌙 Тёмная</option>
+                <option value="forest">🌿 Лесная</option>
+                <option value="sunset">🌅 Закат</option>
+                <option value="ocean">🌊 Океан</option>
+            </optgroup>
+            <optgroup label="Особые">
+                <option value="hedgehog">🦔 Ежики</option>
+                <option value="southpark">🎿 Южный парк</option>
+                <option value="anime">🌸 Аниме</option>
+            </optgroup>
+            <optgroup label="Своя">
+                <option value="custom">🎨 Своя тема</option>
+            </optgroup>
         </select>
+
+        <div id="customThemePanel" class="mt-3" style="display: none;">
+            <div class="custom-theme-warning">
+                ⚠️ <strong>Будьте осторожны</strong> при создании своей темы: некоторая часть функционала может стать невидимой. Разработчик не несёт ответственности за пользовательскую тему.
+            </div>
+
+            <div class="settings-section-title">Взять за основу готовую тему</div>
+            <div class="input-group input-group-sm mb-1">
+                <select id="customThemeBaseSelect" class="form-select form-select-sm">
+                    <option value="">— выбрать тему —</option>
+                    <optgroup label="Базовые">
+                        <option value="light">☀️ Светлая</option>
+                        <option value="dark">🌙 Тёмная</option>
+                        <option value="forest">🌿 Лесная</option>
+                        <option value="sunset">🌅 Закат</option>
+                        <option value="ocean">🌊 Океан</option>
+                    </optgroup>
+                    <optgroup label="Особые">
+                        <option value="hedgehog">🦔 Ежики</option>
+                        <option value="southpark">🎿 Южный парк</option>
+                        <option value="anime">🌸 Аниме</option>
+                    </optgroup>
+                </select>
+                <button class="btn btn-outline-primary" type="button" onclick="applyBaseThemeFromSelect()" title="Скопировать цвета выбранной темы в свою">Применить</button>
+            </div>
+            <div class="small text-muted mb-3" style="line-height: 1.3;">
+                Цвета выбранной темы скопируются в свою. Фото, стикеры и сохранённые пресеты не пострадают.
+            </div>
+
+            <div class="settings-section-title">Мои сохранённые темы</div>
+            <div class="input-group input-group-sm mb-2">
+                <input type="text" id="customThemePresetName" class="form-control"
+                       placeholder="Название темы" maxlength="40"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();saveCurrentAsPreset();}">
+                <button class="btn btn-outline-primary" type="button" onclick="saveCurrentAsPreset()" title="Сохранить текущие настройки как пресет">💾 Сохранить</button>
+            </div>
+            <div id="customThemePresets" class="custom-presets-list mb-3"></div>
+
+            <div class="collapsible-section">
+                <button type="button" class="collapsible-header" onclick="toggleCustomSection('colors')">
+                    <span>🎨 Цвета</span>
+                    <span class="collapsible-arrow" id="arrow-colors">▸</span>
+                </button>
+                <div id="custom-section-colors" class="collapsible-body" style="display: none;">
+                    <div id="customThemePickers" class="custom-pickers-grid"></div>
+                    <button type="button" id="customThemeAdvancedToggle"
+                            class="btn btn-sm btn-outline-secondary w-100 mt-2"
+                            onclick="toggleCustomThemeAdvanced()">▼ Показать все цвета</button>
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <button type="button" class="collapsible-header" onclick="toggleCustomSection('bg')">
+                    <span>🖼 Фон</span>
+                    <span class="collapsible-arrow" id="arrow-bg">▸</span>
+                </button>
+                <div id="custom-section-bg" class="collapsible-body" style="display: none;">
+                    <div class="mb-2">
+                        <label class="small text-muted mb-1 d-block">
+                            Загрузить фотографию с компьютера
+                            <span class="text-muted" style="font-weight: 400;">
+                                (сжимается до 800px / ~200 КБ, хранится в IndexedDB)
+                            </span>
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="file" id="customThemePhotoFile" class="form-control form-control-sm"
+                                   accept="image/*" onchange="onCustomPhotoUpload(this)">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearCustomPhoto()" title="Удалить фото">✕</button>
+                        </div>
+                        <div id="customThemePhotoMeta" class="small text-muted mt-1"></div>
+                    </div>
+
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-2"
+                            onclick="applyThemeFromPhoto()"
+                            title="Автоматически извлечь палитру из загруженного фона">
+                        🎨 Взять цвета с фото
+                    </button>
+
+                    <div class="mb-0">
+                        <label class="small text-muted mb-1 d-block">
+                            Видимость фото: <span id="customThemePhotoOpacityVal">15</span>%
+                        </label>
+                        <input type="range" id="customThemePhotoOpacity" min="0" max="100" value="15"
+                               class="form-range" oninput="onCustomOpacityChange(this, 'photo')">
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <button type="button" class="collapsible-header" onclick="toggleCustomSection('stickers')">
+                    <span>✨ Стикеры</span>
+                    <span class="collapsible-arrow" id="arrow-stickers">▸</span>
+                </button>
+                <div id="custom-section-stickers" class="collapsible-body" style="display: none;">
+                    <div class="mb-2">
+                        <label class="small text-muted mb-1 d-block">Эмодзи через пробел, до 4 штук — повторяются по фону</label>
+                        <input type="text" id="customThemeStickers" class="form-control form-control-sm"
+                               placeholder="🦔 🌸 ⭐" oninput="onCustomStickersChange(this)">
+                    </div>
+                    <div class="mb-0">
+                        <label class="small text-muted mb-1 d-block">
+                            Прозрачность стикеров: <span id="customThemeStickersOpacityVal">15</span>%
+                        </label>
+                        <input type="range" id="customThemeStickersOpacity" min="0" max="100" value="15"
+                               class="form-range" oninput="onCustomOpacityChange(this, 'stickers')">
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-secondary flex-grow-1" type="button" onclick="resetCustomTheme()">
+                    ↺ Сбросить к светлым
+                </button>
+            </div>
+        </div>
 
       </div>
     </div>
@@ -475,6 +643,7 @@
 <script src="/static/js/api.js"></script>
 <script src="/static/js/autocomplete.js"></script>
 <script src="/static/js/weeks.js"></script>
+<script src="/static/js/mini-calendar.js"></script>
 <script src="/static/js/calendar.js"></script>
 <script src="/static/js/navigation.js"></script>
 <script src="/static/js/status.js"></script>
@@ -484,6 +653,7 @@
 <script src="/static/js/widgets.js"></script>
 <script src="/static/js/search.js"></script>
 <script src="/static/js/refresh.js"></script>
+<script src="/static/js/custom-theme.js"></script>
 <script src="/static/js/main.js"></script>
 <script src="/static/js/settings.js"></script>
 <script src="/static/js/notifications.js"></script>

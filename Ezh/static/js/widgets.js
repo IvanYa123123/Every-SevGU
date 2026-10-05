@@ -100,12 +100,42 @@ async function saveAllLabs() {
     if (modal) modal.hide();
 }
 
+// ============================================================
+//  ГРАФИКИ
+// ============================================================
+// Все цвета читаются через getThemeColor() (см. utils.js) — он берёт
+// значения из CSS-переменных текущей темы. Когда тема меняется,
+// applyTheme() из settings.js вызывает refreshChartsTheme(), который
+// уничтожает старые чарты и создаёт здесь новые с актуальной палитрой.
+
 function renderCharts() {
     if (typeof Chart === 'undefined') {
         console.warn("Chart.js не загружен — графики пропущены.");
         return;
     }
 
+    // Палитра текущей темы
+    const cPassed     = getThemeColor('--chart-passed',       '#6366f1');
+    const cRemaining  = getThemeColor('--chart-remaining',    '#cbd5e1');
+    const cLabDone    = getThemeColor('--chart-lab-done',     '#14b8a6');
+    const cLabLeft    = getThemeColor('--chart-lab-left',     '#f59e0b');
+    const cText       = getThemeColor('--text-secondary',     '#64748b');
+    const cTooltipBg  = getThemeColor('--chart-tooltip-bg',   'rgba(15, 23, 42, 0.92)');
+    const cTooltipTx  = getThemeColor('--chart-tooltip-text', '#f8fafc');
+    const cBorder     = getThemeColor('--border-color',       '#e2e8f0');
+
+    const tooltipOpts = {
+        backgroundColor: cTooltipBg,
+        titleColor:      cTooltipTx,
+        bodyColor:       cTooltipTx,
+        borderColor:     cBorder,
+        borderWidth:     1,
+        padding:         8,
+        cornerRadius:    6,
+        displayColors:   false,
+    };
+
+    // --- Общий график «прошло / осталось» ---
     let passed = 0, remaining = 0;
     let todayStr = getLocalDateStr(new Date());
     cachedSchedule.forEach(item => { item.date < todayStr ? passed++ : remaining++; });
@@ -113,18 +143,31 @@ function renderCharts() {
     const ctx1 = document.getElementById('globalStatsChart').getContext('2d');
     if (globalChart) {
         globalChart.data.datasets[0].data = [passed, remaining];
+        globalChart.data.datasets[0].backgroundColor = [cPassed, cRemaining];
+        globalChart.options.plugins.legend.labels.color = cText;
+        globalChart.options.plugins.tooltip = Object.assign(
+            {}, globalChart.options.plugins.tooltip, tooltipOpts
+        );
         globalChart.update();
     } else {
         globalChart = new Chart(ctx1, {
             type: 'doughnut',
             data: {
                 labels: ['Прошло', 'Осталось'],
-                datasets: [{ data: [passed, remaining], backgroundColor: ['#6366f1', '#cbd5e1'], borderWidth: 0 }]
+                datasets: [{ data: [passed, remaining], backgroundColor: [cPassed, cRemaining], borderWidth: 0 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: cText } },
+                    tooltip: tooltipOpts,
+                }
+            }
         });
     }
 
+    // --- График лабораторных ---
     let labItems = cachedSchedule.filter(item => item.type_name === 'ЛЗ' || item.type_name === 'ПЗ');
     let validSubjects = new Set(labItems.map(item => `${item.lesson} (${item.type_name})`));
     let totLabs = 0, compLabs = 0;
@@ -135,24 +178,62 @@ function renderCharts() {
     }
     let uncompLabs = Math.max(0, totLabs - compLabs);
     let labData = totLabs === 0 ? [0, 1] : [compLabs, uncompLabs];
-    let labColors = totLabs === 0 ? ['#f1f5f9', '#f1f5f9'] : ['#14b8a6', '#f59e0b'];
+    let labColors = totLabs === 0 ? [cRemaining, cRemaining] : [cLabDone, cLabLeft];
+    let labLabels = totLabs === 0 ? ['Нет данных', ''] : ['Сдано', 'Осталось'];
 
     const ctx2 = document.getElementById('labStatsChart').getContext('2d');
     if (globalLabChart) {
         globalLabChart.data.datasets[0].data = labData;
         globalLabChart.data.datasets[0].backgroundColor = labColors;
+        globalLabChart.data.labels = labLabels;
+        globalLabChart.options.plugins.legend.labels.color = cText;
+        globalLabChart.options.plugins.tooltip = Object.assign(
+            {}, globalLabChart.options.plugins.tooltip, tooltipOpts
+        );
         globalLabChart.update();
     } else {
         globalLabChart = new Chart(ctx2, {
             type: 'doughnut',
             data: {
-                labels: totLabs === 0 ? ['Нет данных', ''] : ['Сдано', 'Осталось'],
+                labels: labLabels,
                 datasets: [{ data: labData, backgroundColor: labColors, borderWidth: 0 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: cText } },
+                    tooltip: tooltipOpts,
+                }
+            }
         });
     }
+
     renderLabPacing();
+}
+
+// Уничтожает существующие чарты и создаёт их заново, чтобы подхватить
+// палитру текущей темы. Вызывается из applyTheme() в settings.js при
+// смене темы. Идемпотентна: если графиков нет — просто тихо выйдет.
+function refreshChartsTheme() {
+    if (typeof globalChart !== 'undefined' && globalChart) {
+        try { globalChart.destroy(); } catch (e) {}
+        globalChart = null;
+    }
+    if (typeof globalLabChart !== 'undefined' && globalLabChart) {
+        try { globalLabChart.destroy(); } catch (e) {}
+        globalLabChart = null;
+    }
+    // Перерисовываем только если расписание уже загружено — иначе
+    // renderCharts() создаст чарты с нулевыми данными, а потом
+    // fetchSemesterData → renderCharts() создаст их повторно. Потери нет,
+    // но и смысла тоже.
+    if (typeof cachedSchedule !== 'undefined'
+        && Array.isArray(cachedSchedule)
+        && cachedSchedule.length > 0) {
+        try { renderCharts(); }
+        catch (e) { console.error('[theme] renderCharts failed', e); }
+    }
 }
 
 function renderLabPacing() {

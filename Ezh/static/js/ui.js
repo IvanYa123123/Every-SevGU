@@ -1,4 +1,4 @@
-// Лоадер, уведомления, сворачивание виджетов.
+// Лоадер, уведомления, сворачивание виджетов, undo-полоса.
 
 const loadingPhrases = [
     "Грызем гранит науки...",
@@ -15,15 +15,9 @@ const loadingPhrases = [
     "Взламываем калькулятор..."
 ];
 
-/**
- * Возвращает DOM-элемент лоадера. Если его нет в HTML — создаёт на лету.
- * Так лоадер появится даже если index.html был старой версии.
- */
 function _ensureLoaderEl() {
     let loader = document.getElementById('globalLoader');
     if (loader) return loader;
-
-    console.warn('[ui] #globalLoader не найден — создаю динамически');
     loader = document.createElement('div');
     loader.id = 'globalLoader';
     loader.style.cssText = [
@@ -49,19 +43,10 @@ function _ensureLoaderText(loader) {
     return textEl;
 }
 
-/**
- * Показывает полноэкранный лоадер.
- * @param {string} [message]  Если задано — фиксированный текст вместо
- *                             ротации шутливых фраз (используется в refresh).
- */
 function showGlobalLoader(message) {
     const loader = _ensureLoaderEl();
     const textEl = _ensureLoaderText(loader);
-
-    if (loaderInterval) {
-        clearInterval(loaderInterval);
-        loaderInterval = null;
-    }
+    if (loaderInterval) { clearInterval(loaderInterval); loaderInterval = null; }
 
     if (message) {
         textEl.textContent = message;
@@ -75,33 +60,24 @@ function showGlobalLoader(message) {
     }
 
     loader.style.display = 'flex';
-    void loader.offsetHeight;   // force reflow — гарантия, что стиль применился
-    console.log('[ui] showGlobalLoader:', message || '(default phrases)');
+    void loader.offsetHeight;
 }
 
 function hideGlobalLoader() {
     const loader = document.getElementById('globalLoader');
     if (loader) loader.style.display = 'none';
-    if (loaderInterval) {
-        clearInterval(loaderInterval);
-        loaderInterval = null;
-    }
-    console.log('[ui] hideGlobalLoader');
+    if (loaderInterval) { clearInterval(loaderInterval); loaderInterval = null; }
 }
 
-/**
- * Меняет текст уже показанного лоадера без пересоздания интервала.
- * Используется в manualRefresh() для пошагового прогресса.
- */
 function setLoaderText(message) {
     if (!message) return;
     const textEl = document.getElementById('loaderText');
     if (textEl) textEl.textContent = message;
-    console.log('[ui] loader step:', message);
 }
 
 function showUpdateNotification(message) {
     let notif = document.getElementById('updateNotification');
+    if (!notif) return;
     document.getElementById('updateNotificationText').textContent = message;
     notif.style.display = 'block';
     notif.animate([
@@ -137,9 +113,45 @@ function toggleWidget(bodyId, btn) {
     }
 }
 
-// Вращение и сворачивание ежа при скролле страницы.
-// Угол накапливается по дельте скролла, а при остановке — «прилипает»
-// к ближайшему кратному 360°, чтобы ёжик всегда вставал на лапки.
+// ============================================================
+//  UNDO-ПОЛОСА
+// ============================================================
+
+function showUndoBar(message, onUndo) {
+    let bar = document.getElementById('undoBar');
+    if (!bar) return;
+
+    const textEl = document.getElementById('undoBarText');
+    const btnEl  = document.getElementById('undoBarBtn');
+    if (textEl) textEl.textContent = message;
+
+    if (btnEl) {
+        // Заменяем кнопку, чтобы снять все старые обработчики
+        const newBtn = btnEl.cloneNode(true);
+        btnEl.parentNode.replaceChild(newBtn, btnEl);
+        newBtn.onclick = () => { if (typeof onUndo === 'function') onUndo(); };
+    }
+
+    bar.style.display = 'block';
+    bar.animate([
+        {opacity: 0, transform: 'translate(-50%, 20px)'},
+        {opacity: 1, transform: 'translate(-50%, 0)'}
+    ], {duration: 250, fill: 'forwards'});
+}
+
+function hideUndoBar() {
+    const bar = document.getElementById('undoBar');
+    if (!bar || bar.style.display === 'none') return;
+    const anim = bar.animate([
+        {opacity: 1, transform: 'translate(-50%, 0)'},
+        {opacity: 0, transform: 'translate(-50%, 20px)'}
+    ], {duration: 200, fill: 'forwards'});
+    anim.onfinish = () => { bar.style.display = 'none'; };
+}
+
+// ============================================================
+//  Вращение ёжика при скролле
+// ============================================================
 let ezhScrollTimer = null;
 let currentEzhRotation = 0;
 let lastScrollY = window.scrollY;
@@ -147,7 +159,6 @@ let lastScrollY = window.scrollY;
 window.addEventListener('scroll', () => {
     const ezh = document.getElementById('ezh-logo');
     if (ezh) {
-        // Вычисляем дельту скролла и крутим ежа в нужную сторону
         let delta = window.scrollY - lastScrollY;
         lastScrollY = window.scrollY;
         currentEzhRotation += delta;
@@ -157,9 +168,7 @@ window.addEventListener('scroll', () => {
 
         clearTimeout(ezhScrollTimer);
         ezhScrollTimer = setTimeout(() => {
-            // Ищем ближайший угол, при котором лапки смотрят вниз (кратный 360)
             currentEzhRotation = Math.round(currentEzhRotation / 360) * 360;
-            // Пружинисто разворачиваемся и встаем на лапки
             ezh.style.transition = 'transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
             ezh.style.transform = `rotate(${currentEzhRotation}deg) scale(1)`;
         }, 150);

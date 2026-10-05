@@ -330,9 +330,6 @@ async function deleteFriend(id) {
     } catch (e) { console.error("Ошибка при удалении друга", e); }
 }
 
-// dir — направление анимации: 'right' | 'left' | null.
-// Передаётся из renderCalendar(), чтобы друзья скользили ровно так же,
-// как и основная сетка, в тот же момент времени.
 function renderFriendsCalendar(dir = null) {
     let container = document.getElementById("friendsCalendarsContainer");
     if (!container) return;
@@ -348,9 +345,27 @@ function renderFriendsCalendar(dir = null) {
         if (btnNext) btnNext.classList.remove('show-friends-nav');
     }
 
-    if (!friendsList || friendsList.length === 0) return;
+    // --- Пустые состояния ---
+    if (!friendsList || friendsList.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">👥</div>
+                <div class="empty-state-title">Пока никого нет</div>
+                <div class="empty-state-text">Нажмите «+ Добавить друга», чтобы видеть расписание друзей рядом со своим.</div>
+            </div>`;
+        return;
+    }
+    if (visibleFriends.size === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">🔍</div>
+                <div class="empty-state-title">Все друзья скрыты</div>
+                <div class="empty-state-text">Выберите, кого показывать, в меню «Кого показывать?».</div>
+            </div>`;
+        return;
+    }
 
-    let realTodayStr = getLocalDateStr(new Date()); // Для подсветки сегодняшнего дня
+    let realTodayStr = getLocalDateStr(new Date());
 
     friendsList.forEach(friend => {
         if (!visibleFriends.has(friend.id)) return;
@@ -401,12 +416,10 @@ function renderFriendsCalendar(dir = null) {
         `;
         wrapper.appendChild(header);
 
-        // Сетка друга — анимация ровно та же, что у основного календаря
         let grid = document.createElement('div');
         grid.className = "calendar-grid w-100";
-
         grid.classList.remove('slide-left', 'slide-right', 'fade-in');
-        void grid.offsetWidth; // force reflow
+        void grid.offsetWidth;
         if (dir === 'right')      grid.classList.add('slide-right');
         else if (dir === 'left')  grid.classList.add('slide-left');
         else                      grid.classList.add('fade-in');
@@ -421,7 +434,6 @@ function renderFriendsCalendar(dir = null) {
             let myDaySchedule = cachedSchedule.filter(item => item.date === dateStr);
             myDaySchedule.sort((a, b) => a.n - b.n);
 
-            // Проверяем, является ли колонка сегодняшним днем
             let isTodayClass = (dateStr === realTodayStr) ? " day-today" : "";
             let html = `<div class="friend-col${isTodayClass}"><div class="friend-day-header">${displayDate}</div>`;
 
@@ -444,31 +456,31 @@ function renderFriendsCalendar(dir = null) {
                         myItem.lesson === fItem.lesson &&
                         (myItem.location || '').trim().toLowerCase() === (fItem.location || '').trim().toLowerCase()
                     );
-                    if (match) html += `<div class="shared-class fw-bold bg-success text-white">🤝 Общая пара в ${fixTime(fItem.time_range.split(' - ')[0])}</div>`;
+                    if (match) html += `<div class="shared-class shared-common fw-bold">🤝 Общая пара в ${fixTime(fItem.time_range.split(' - ')[0])}</div>`;
                 });
 
                 if (myStart && fStart === myStart) {
                     if (fCampStart !== 'unknown' && myCampStart !== 'unknown') {
                         if (fCampStart !== myCampStart) {
-                            html += `<div class="shared-class text-white fw-bold" style="background: #f97316;">🚨 Начинаем одновременно в ${fStart}, но в разных корпусах</div>`;
+                            html += `<div class="shared-class shared-warning fw-bold">🚨 Начинаем одновременно в ${fStart}, но в разных корпусах</div>`;
                         } else {
                             let campRu = campusNames[fCampStart] || fCampStart;
-                            html += `<div class="shared-class text-success fw-bold border border-success">🏃 Начинаем одновременно в корпусе «${campRu}» в ${fStart}</div>`;
+                            html += `<div class="shared-class shared-same-campus fw-bold">🏃 Начинаем одновременно в корпусе «${campRu}» в ${fStart}</div>`;
                         }
                     } else {
-                        html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Начинаем в одно время: ${fStart}</div>`;
+                        html += `<div class="shared-class shared-info fw-bold">🕒 Начинаем в одно время: ${fStart}</div>`;
                     }
                 }
                 if (myEnd && fEnd === myEnd) {
                     if (fCampEnd !== 'unknown' && myCampEnd !== 'unknown') {
                         if (fCampEnd !== myCampEnd) {
-                            html += `<div class="shared-class text-white fw-bold" style="background: #f97316;">🚨 Заканчиваем одновременно в ${fEnd}, но в разных корпусах</div>`;
+                            html += `<div class="shared-class shared-warning fw-bold">🚨 Заканчиваем одновременно в ${fEnd}, но в разных корпусах</div>`;
                         } else {
                             let campRu = campusNames[fCampEnd] || fCampEnd;
-                            html += `<div class="shared-class fw-bold border border-success">🏡 Заканчиваем одновременно в корпусе «${campRu}» в ${fEnd}</div>`;
+                            html += `<div class="shared-class shared-same-campus fw-bold">🏡 Заканчиваем одновременно в корпусе «${campRu}» в ${fEnd}</div>`;
                         }
                     } else {
-                        html += `<div class="shared-class fw-bold border" style="background:#e0e7ff;color:#4338ca;">🕒 Заканчиваем в одно время: ${fEnd}</div>`;
+                        html += `<div class="shared-class shared-info fw-bold">🕒 Заканчиваем в одно время: ${fEnd}</div>`;
                     }
                 }
 
@@ -479,7 +491,7 @@ function renderFriendsCalendar(dir = null) {
                         let teacherHtml = (showTeacher && fItem.teacher) ? `<div class="text-muted mt-1" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(fItem.teacher)}</div>` : '';
                         let locHtml = (showLocation && fItem.location) ? `<div class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(fItem.location)}</div>` : '';
                         html += `
-                            <div class="bg-white border rounded p-1 mb-1 shadow-sm" style="font-size: 0.75em; border-left: 3px solid #cbd5e1 !important;">
+                            <div class="bg-white border rounded p-1 mb-1 shadow-sm" style="font-size: 0.75em; border-left: 3px solid var(--border-color) !important;">
                                 <strong class="text-primary">${fixTime(fItem.time_range)}</strong>${typeBadge}<br>
                                 <span title="${escapeHtml(fItem.lesson)}">${escapeHtml(fItem.lesson)}</span>
                                 ${teacherHtml}

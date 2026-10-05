@@ -44,6 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             updateWeekDropdown();
             renderCalendar();
             renderCharts();
+            renderMiniCalendar();
             hideGlobalLoader();
             fetchFriends();
         }
@@ -54,8 +55,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function updateDisplayPrefs() {
-    // Оставлено для обратной совместимости: если где-то ещё остался вызов — он просто
-    // синхронизирует переменные с localStorage и перерисовывает календарь.
     showTeacher  = localStorage.getItem('showTeacher')  !== 'false';
     showLocation = localStorage.getItem('showLocation') !== 'false';
     showFriends  = localStorage.getItem('showFriends')  !== 'false';
@@ -138,7 +137,7 @@ async function syncSemesterData(group, subgroup) {
         let newData = applyTimeFix(await apiSyncSchedule(group, subgroup));
         if (Array.isArray(newData) && newData.length > 0) {
             if (cachedSchedule && cachedSchedule.length > 0 && newData.length < cachedSchedule.length * 0.9) {
-                console.error("Критический сбой СевГУ: попытка затереть расписание. Фоновое обновление отменено!");
+                console.error("Критический сбой СевГУ: попытка затереть расписание.");
                 return;
             }
             if (isScheduleDifferent(newData, cachedSchedule)) {
@@ -148,6 +147,11 @@ async function syncSemesterData(group, subgroup) {
                 updateScheduleStatus();
                 refreshNotifications();
                 showUpdateNotification("Ваше расписание обновлено в фоне");
+            }
+            // Только после успешной синхронизации пишем timestamp
+            if (typeof saveSyncTime === 'function') {
+                saveSyncTime(group, subgroup);
+                if (typeof renderSyncFreshness === 'function') renderSyncFreshness();
             }
         }
     } catch (e) { console.error("Ошибка синхронизации расписания", e); }

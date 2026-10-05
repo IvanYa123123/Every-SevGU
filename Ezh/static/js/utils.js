@@ -124,9 +124,6 @@ function formatDateRu(dateStr) {
 // ============================================================
 //  ДЛИТЕЛЬНОСТЬ С ТОЧНОСТЬЮ (для статус-строки)
 // ============================================================
-// < 1 часа:  "X минут [Y секунд [Z.cc секунд]]"
-// < 1 дня:   "X часов Y минут [Z секунд [W.cc секунд]]"
-// >= 1 дня:  "N дней M часов"
 function formatDurationMs(ms, precision = 'min') {
     if (!isFinite(ms) || ms < 0) return "0 секунд";
 
@@ -176,4 +173,45 @@ function formatDurationMs(ms, precision = 'min') {
     }
 
     return parts.join(' ');
+}
+
+// ============================================================
+//  ТЕМЫ
+// ============================================================
+function getThemeColor(varName, fallback = '#000000') {
+    try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return v || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+
+// ============================================================
+//  УВЕДОМЛЕНИЯ — форматирование интервала оповещения
+// ============================================================
+// Принимает число + единицу ('min' | 'hour' | 'day' | 'week') и
+// возвращает «15 минут», «2 часа», «1 день», «3 недели» и т.п.
+function formatAdvanceText(value, unit) {
+    const n = parseInt(value, 10) || 0;
+    const forms = {
+        min:  ['минуту', 'минуты', 'минут'],
+        hour: ['час',    'часа',   'часов'],
+        day:  ['день',   'дня',    'дней'],
+        week: ['неделю', 'недели', 'недель'],
+    };
+    const f = forms[unit] || forms.min;
+    return `${n} ${plural(n, f[0], f[1], f[2])}`;
+}
+
+// Миллисекунды для пары (число, единица).
+function advanceToMs(value, unit) {
+    const n = parseInt(value, 10) || 0;
+    switch (unit) {
+        case 'hour': return n * 60 * 60 * 1000;
+        case 'day':  return n * 24 * 60 * 60 * 1000;
+        case 'week': return n * 7 * 24 * 60 * 60 * 1000;
+        case 'min':
+        default:     return n * 60 * 1000;
+    }
 }

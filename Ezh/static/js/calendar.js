@@ -1,4 +1,4 @@
-// Рендер сетки календаря, раскрытие дня, кастомные события.
+// Рендер сетки календаря, раскрытие дня, кастомные события, индикатор свежести.
 
 function getCustomItemsForDate(dateStr) {
     let items = [];
@@ -41,11 +41,9 @@ function getCustomItemsForDate(dateStr) {
 }
 
 async function renderCalendar() {
-    // Захватываем направление ДО первого await и обнуляем глобальный флаг.
     const calDir = window._calDir;
     window._calDir = null;
 
-    // Сохраняем раскрытые дни по классу .expanded (раньше — по style.display)
     let openDays = new Set();
     document.querySelectorAll('div[id^="schedule-details-"]').forEach(el => {
         if (el.classList.contains('expanded')) {
@@ -58,13 +56,11 @@ async function renderCalendar() {
     const cal = document.getElementById("calendar");
     if (!cal) return;
 
-    // --- Анимация перелистывания всей сетки ---
     cal.classList.remove('slide-left', 'slide-right', 'fade-in');
     void cal.offsetWidth;
     if (calDir === 'right')      cal.classList.add('slide-right');
     else if (calDir === 'left')  cal.classList.add('slide-left');
     else                         cal.classList.add('fade-in');
-    // ------------------------------------------
 
     cal.innerHTML = "";
 
@@ -73,6 +69,22 @@ async function renderCalendar() {
     endD.setDate(endD.getDate() + 6);
     let endStr = getLocalDateStr(endD);
     let realTodayStr = getLocalDateStr(new Date());
+
+    // Пустое состояние: если пользователь ещё не выбрал группу — вся сетка пуста.
+    const currentGroup = (document.getElementById('groupSelect')?.value || '').trim();
+    if (!currentGroup || cachedSchedule.length === 0) {
+        cal.innerHTML = `
+            <div class="empty-state empty-state-wide">
+                <div class="empty-state-icon">📚</div>
+                <div class="empty-state-title">${currentGroup ? 'Расписание не загружено' : 'Выберите группу'}</div>
+                <div class="empty-state-text">${currentGroup
+                    ? 'Нажмите «Найти» ещё раз или обновите страницу.'
+                    : 'Введите номер группы в строке поиска сверху и нажмите «Найти».'}</div>
+            </div>`;
+        if (typeof renderSyncFreshness === 'function') renderSyncFreshness();
+        if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
+        return;
+    }
 
     for (let i = 0; i < 7; i++) {
         let d = new Date(currentBaseDate);
@@ -109,8 +121,6 @@ async function renderCalendar() {
 
             daySchedule.forEach(item => {
                 let origLesson = item.lesson;
-                // subjectKey — оригинальный ключ для таблицы subject_settings
-                // (вид: "Математика (Лекция)"). По нему же открываются настройки.
                 let subjectKey = item.is_custom ? origLesson : `${item.lesson} (${item.type_name})`;
                 let safeSubjectKey = escapeJsString(subjectKey);
                 let displayLesson = origLesson;
@@ -129,22 +139,14 @@ async function renderCalendar() {
                     if (cachedSubjectSettings[subjectKey].location) displayLocation = cachedSubjectSettings[subjectKey].location;
                 }
 
-                // Название предмета для текста заметки:
-                //   - для кастомных элементов — как есть,
-                //   - для обычных пар — переименование пользователя (если задано)
-                //     с сохранением типа пары в скобках.
                 let taskSubjectLabel;
-                if (item.is_custom) {
-                    taskSubjectLabel = item.lesson;
-                } else if (customName) {
-                    taskSubjectLabel = `${customName} (${item.type_name})`;
-                } else {
-                    taskSubjectLabel = subjectKey;
-                }
+                if (item.is_custom) taskSubjectLabel = item.lesson;
+                else if (customName) taskSubjectLabel = `${customName} (${item.type_name})`;
+                else taskSubjectLabel = subjectKey;
                 let safeTaskSubject = escapeJsString(taskSubjectLabel);
 
                 let lessonHtml = lessonLink
-                    ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: #4f46e5;" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
+                    ? `<a href="${lessonLink}" target="_blank" class="text-decoration-none fw-bold" style="color: var(--accent);" title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</a>`
                     : `<span title="${escapeHtml(origLesson)}">${escapeHtml(displayLesson)}</span>`;
 
                 if (!item.is_custom) {
@@ -161,7 +163,7 @@ async function renderCalendar() {
                 let editCustomHtml = item.is_custom ? `<span style="cursor:pointer; font-size: 0.9em; margin-left: 8px;" onclick="openCustomScheduleModal('${item.date}', ${item.custom_id})" title="Редактировать">✏️</span>` : '';
                 let teacherInfo = (displayTeacher && showTeacher) ? `<span class="text-muted" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(displayTeacher)}</span>` : '';
                 let locInfo = (displayLocation && showLocation) ? `<span class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(displayLocation)}</span>` : '';
-                let customStyle = item.is_custom ? (item.is_event ? 'border-left: 3px solid #10b981;' : 'border-left: 3px solid #8b5cf6;') : 'border-left: 3px solid #6366f1;';
+                let customStyle = item.is_custom ? (item.is_event ? 'border-left: 3px solid var(--event-color);' : 'border-left: 3px solid var(--custom-pair-color);') : 'border-left: 3px solid var(--accent);';
 
                 scheduleHtml += `
                     <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2; ${customStyle}">
@@ -175,20 +177,17 @@ async function renderCalendar() {
                 `;
             });
             scheduleHtml += `</div></div>`;
+        } else {
+            scheduleHtml = `<div class="empty-state-inline">
+                <span class="empty-state-inline-icon">☕</span>
+                <span>Свободный день</span>
+            </div>`;
         }
 
         cal.innerHTML += `
             <div class="day-col ${isTodayClass}" id="day-col-${dateStr}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
                 <div class="day-header">
-                    <div class="day-nav-btn-group">
-                        <button class="day-nav-btn day-nav-note-prev" onclick="navigateNote('${dateStr}', -1)" title="Предыдущая заметка">◀ Заметка</button>
-                        <button class="day-nav-btn day-nav-event-prev" onclick="navigateEvent('${dateStr}', -1)" title="Предыдущее событие">◀ Событие</button>
-                    </div>
                     <span class="day-nav-center">${displayDate}</span>
-                    <div class="day-nav-btn-group">
-                        <button class="day-nav-btn day-nav-note-next" onclick="navigateNote('${dateStr}', 1)" title="Следующая заметка">Заметка ▶</button>
-                        <button class="day-nav-btn day-nav-event-next" onclick="navigateEvent('${dateStr}', 1)" title="Следующее событие">Событие ▶</button>
-                    </div>
                 </div>
 
                 <div class="day-schedule-wrap">
@@ -199,7 +198,7 @@ async function renderCalendar() {
                     <div id="tasks-${dateStr}" style="flex-grow: 1; min-height: 50px;"></div>
 
                     <div id="expand-btn-wrap-${dateStr}" style="display: none; text-align: center;">
-                        <span class="add-task-btn mt-1" style="color: #f59e0b;" onclick="toggleExpandDay('${dateStr}')">Развернуть</span>
+                        <span class="add-task-btn mt-1" style="color: var(--status-orange);" onclick="toggleExpandDay('${dateStr}')">Развернуть</span>
                     </div>
 
                     <div class="text-center mt-2 d-flex justify-content-center gap-2">
@@ -224,11 +223,17 @@ async function renderCalendar() {
 
     try {
         let tasks = await apiLoadTasks(startStr, endStr);
-        tasks.forEach(t => renderTask(t));
+        if (typeof renderTasksStaggered === 'function') {
+            renderTasksStaggered(tasks);
+        } else {
+            tasks.forEach(t => renderTask(t));
+        }
     } catch (e) { console.error("Tasks load error", e); }
 
-    // Передаём захваченное направление в календари друзей
     renderFriendsCalendar(calDir);
+
+    if (typeof renderSyncFreshness === 'function') renderSyncFreshness();
+    if (typeof renderMiniCalendar === 'function') renderMiniCalendar();
 
     if (expandedDayDateStr) {
         let grid = document.querySelector('.calendar-grid');
@@ -243,11 +248,49 @@ async function renderCalendar() {
             if (details) details.classList.add('expanded');
             if (arrow) arrow.textContent = "▲";
             rebalanceDayText(expandedDayDateStr);
-            updateNavButtonsState(expandedDayDateStr);
         } else {
             expandedDayDateStr = null;
         }
     }
+}
+
+// ============================================================
+//  ИНДИКАТОР СВЕЖЕСТИ РАСПИСАНИЯ
+// ============================================================
+
+function _formatAgo(ms) {
+    const diff = Date.now() - ms;
+    if (diff < 60 * 1000) return 'только что';
+    const min = Math.floor(diff / 60000);
+    if (min < 60) return `${min} ${plural(min, 'минуту', 'минуты', 'минут')} назад`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h} ${plural(h, 'час', 'часа', 'часов')} назад`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d} ${plural(d, 'день', 'дня', 'дней')} назад`;
+    return 'давно';
+}
+
+function renderSyncFreshness() {
+    const el = document.getElementById('syncFreshness');
+    if (!el) return;
+
+    const group    = (document.getElementById('groupSelect')?.value || '').trim();
+    const subgroup = document.getElementById('subgroupSelect')?.value || '0';
+    if (!group) { el.textContent = ''; return; }
+
+    const ts = (typeof getSyncTime === 'function') ? getSyncTime(group, subgroup) : null;
+    if (!ts) {
+        el.innerHTML = `<span class="sync-fresh sync-fresh-cache" title="Расписание загружено из локального кэша">📦 из кэша</span>`;
+        return;
+    }
+
+    const age = Date.now() - ts;
+    const isFresh = age < 6 * 60 * 60 * 1000;
+    const cls = isFresh ? 'sync-fresh-ok' : 'sync-fresh-cache';
+    const icon = isFresh ? '🔄' : '📦';
+    const hint = isFresh ? 'Синхронизировано недавно' : 'Давно не синхронизировано';
+
+    el.innerHTML = `<span class="sync-fresh ${cls}" title="${hint}">${icon} ${_formatAgo(ts)}</span>`;
 }
 
 function toggleSchedule(dateStr) {
@@ -290,7 +333,6 @@ function toggleExpandDay(dateStr) {
         let arrow   = document.getElementById(`arrow-${dateStr}`);
         if (details) details.classList.add('expanded');
         if (arrow) arrow.textContent = "▲";
-        setTimeout(() => updateNavButtonsState(dateStr), 70);
         setTimeout(() => scrollToCol(true), 60);
     }
 }
@@ -350,19 +392,4 @@ function rebalanceDayText(dateStr) {
         let limit = share + (idx < remainder ? 1 : 0);
         shortEl.textContent = full.length <= limit ? full : full.slice(0, limit).trimEnd() + '…';
     });
-}
-
-function updateNavButtonsState(dateStr) {
-    let col = document.getElementById(`day-col-${dateStr}`);
-    if (!col) return;
-
-    let notePrev  = col.querySelector('.day-nav-note-prev');
-    let noteNext  = col.querySelector('.day-nav-note-next');
-    let eventPrev = col.querySelector('.day-nav-event-prev');
-    let eventNext = col.querySelector('.day-nav-event-next');
-
-    if (notePrev)  notePrev.disabled  = !computePrevNoteDate(dateStr);
-    if (noteNext)  noteNext.disabled  = !computeNextNoteDate(dateStr);
-    if (eventPrev) eventPrev.disabled = !findPrevEventDate(dateStr);
-    if (eventNext) eventNext.disabled = !findNextEventDate(dateStr);
 }

@@ -1,4 +1,6 @@
-// Заметки: создание, редактирование, цвета, drag-n-drop между днями.
+// Заметки: создание, редактирование, цвета, drag-n-drop, undo.
+// Обновление карточки — in-place, чтобы CSS-transition плавно менял
+// border-left-color при переключении статуса.
 
 const _taskBlurTimers = {};
 
@@ -40,26 +42,51 @@ async function createTask(date, text, status) {
     try {
         let data = await apiCreateTask({date, text, status});
         taskDatesSet.add(date);
-        // Новые заметки появляются с pop-in. Все остальные вызовы renderTask
-        // (переключение цвета, drag-n-drop, первичная загрузка) — без анимации,
-        // чтобы карточки не дёргались при каждом обновлении.
         renderTask({id: data.id, date, text, status}, { animate: true });
+        if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
+
+        const taskId = data.id;
+        scheduleUndo('Заметка добавлена', async () => {
+            try {
+                await apiDeleteTask(taskId);
+                const el = document.getElementById(`task-${taskId}`);
+                if (el) { el.remove(); rebalanceDayText(date); }
+                refreshTaskDates();
+            } catch (e) { console.error(e); }
+        });
     } catch (e) { console.error("createTask failed", e); }
 }
 
+// Публичная точка рендера. Если карточка уже есть — обновляет in-place
+// (см. _updateTaskCard, там transition красит границу плавно).
 function renderTask(task, options = {}) {
-    const { animate = false } = options;
+    const { animate = false, stagger = -1 } = options;
     const container = document.getElementById(`tasks-${task.date}`);
     if (!container) return;
 
-    let existing = document.getElementById(`task-${task.id}`);
-    if (existing) existing.remove();
+    let div = document.getElementById(`task-${task.id}`);
 
+    if (div) {
+        _updateTaskCard(div, task);
+        rebalanceDayText(task.date);
+        return;
+    }
+
+    div = _buildTaskCard(task);
+    if (animate) div.classList.add('task-pop-in');
+    if (stagger >= 0) div.style.animationDelay = `${Math.min(stagger * 45, 450)}ms`;
+    container.appendChild(div);
+    rebalanceDayText(task.date);
+}
+
+function _buildTaskCard(task) {
     let div = document.createElement('div');
     div.className = `task-card status-${task.status}`;
-    if (animate) div.classList.add('task-pop-in');
     div.id = `task-${task.id}`;
     div.draggable = true;
+
+    if (task.status === 'completed') div.classList.add('task-completed');
+    _applyOverdueClass(div, task);
 
     let spanText = document.createElement('div');
     spanText.className = 'task-text';
@@ -69,33 +96,69 @@ function renderTask(task, options = {}) {
 
     let actions = document.createElement('div');
     actions.className = 'task-actions';
-
-    let btnEdit = document.createElement('a');
-    btnEdit.className = 'task-btn task-edit';
-    btnEdit.innerHTML = '✏️';
-    btnEdit.onclick = (e) => {
-        e.stopPropagation();
-        let newText = prompt("Изменить заметку:", task.text);
-        if (newText && newText.trim() !== '') {
-            task.text = newText.trim();
-            updateTaskRequest(task);
-        }
-    };
-
-    let btnDel = document.createElement('a');
-    btnDel.className = 'task-btn';
-    if (task.status === 'completed') { div.classList.add('task-completed'); btnDel.innerHTML = '🗑️'; }
-    else { btnDel.innerHTML = '×'; btnDel.style.fontSize = '1.3em'; }
-    btnDel.onclick = () => handleTaskDeleteClick(task);
-
-    if (task.status !== 'completed') actions.appendChild(btnEdit);
-    actions.appendChild(btnDel);
+    _fillTaskActions(actions, task);
 
     div.appendChild(spanText);
     div.appendChild(actions);
     div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
-    container.appendChild(div);
-    rebalanceDayText(task.date);
+    return div;
+}
+
+function _fillTaskActions(actions, task) {
+    actions.innerHTML = '';
+
+    if (task.status !== 'completed') {
+        const btnEdit = document.createElement('a');
+        btnEdit.className = 'task-btn task-edit';
+        btnEdit.innerHTML = '✏️';
+        btnEdit.onclick = (e) => {
+            e.stopPropagation();
+            let newText = prompt("Изменить заметку:", task.text);
+            if (newText && newText.trim() !== '') {
+                task.text = newText.trim();
+                updateTaskRequest(task);
+            }
+        };
+        actions.appendChild(btnEdit);
+    }
+
+    const btnDel = document.createElement('a');
+    btnDel.className = 'task-btn';
+    if (task.status === 'completed') { btnDel.innerHTML = '🗑️'; }
+    else { btnDel.innerHTML = '×'; btnDel.style.fontSize = '1.3em'; }
+    btnDel.onclick = () => handleTaskDeleteClick(task);
+    actions.appendChild(btnDel);
+}
+
+function _applyOverdueClass(div, task) {
+    const todayStr = getLocalDateStr(new Date());
+    const isOverdue = task.status !== 'completed' && task.date < todayStr;
+    div.classList.toggle('task-overdue', isOverdue);
+}
+
+// Обновляет существующий DOM-узел без пересоздания — CSS плавно
+// перекрашивает border-left-color, opacity и фон.
+function _updateTaskCard(div, task) {
+    div.classList.remove('status-green', 'status-orange', 'status-red');
+    div.classList.add(`status-${task.status}`);
+    div.classList.toggle('task-completed', task.status === 'completed');
+    _applyOverdueClass(div, task);
+
+    const safeText = task.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const shortEl = div.querySelector('.task-text-short');
+    const fullEl  = div.querySelector('.task-text-full');
+    if (shortEl) shortEl.textContent = safeText;
+    if (fullEl)  fullEl.textContent  = safeText;
+
+    const actions = div.querySelector('.task-actions');
+    if (actions) _fillTaskActions(actions, task);
+
+    const spanText = div.querySelector('.task-text');
+    if (spanText) {
+        spanText.onclick = () => { if (task.status !== 'completed') toggleColor(task.id, task.status); };
+    }
+
+    div.ondragstart = (e) => { e.dataTransfer.setData("text/plain", JSON.stringify(task)); };
 }
 
 function updateTaskRequest(task) {
@@ -106,28 +169,39 @@ function updateTaskRequest(task) {
 
 function handleTaskDeleteClick(task) {
     if (task.status !== 'completed') {
-        // Первый клик: помечаем выполненной. Полная перерисовка карточки —
-        // это не «удаление», анимация удаления тут не нужна.
+        const prevStatus = task.status;
         task.status = 'completed';
         updateTaskRequest(task);
+
+        scheduleUndo('Заметка завершена', () => {
+            const restored = { ...task, status: prevStatus };
+            updateTaskRequest(restored);
+        });
     } else {
-        // Второй клик: настоящее удаление — плавно сжимаем и убираем.
         const el = document.getElementById(`task-${task.id}`);
         if (!el) return;
-        animateTaskRemoval(el, () => rebalanceDayText(task.date));
+
+        const snapshot = { date: task.date, text: task.text, status: task.status };
+        _animateTaskRemoval(el, () => rebalanceDayText(task.date));
         apiDeleteTask(task.id)
             .then(() => refreshTaskDates())
             .catch(e => console.error(e));
+
+        scheduleUndo('Заметка удалена', async () => {
+            try {
+                const resp = await apiCreateTask(snapshot);
+                taskDatesSet.add(snapshot.date);
+                renderTask({id: resp.id, date: snapshot.date, text: snapshot.text, status: snapshot.status}, { animate: true });
+                if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
+            } catch (e) { console.error(e); }
+        });
     }
 }
 
-// Плавное «сжатие в точку» перед удалением DOM-узла.
-// Колбэк (rebalanceDayText) вызывается ПОСЛЕ удаления, чтобы соседние
-// карточки успели пересчитаться уже без уходящей.
-function animateTaskRemoval(el, onDone) {
+function _animateTaskRemoval(el, onDone) {
     el.style.pointerEvents = 'none';
     el.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
-    void el.offsetWidth;                // force reflow — чтобы transition реально запустился
+    void el.offsetWidth;
     el.style.opacity = '0';
     el.style.transform = 'scale(0.85)';
     setTimeout(() => {
@@ -153,15 +227,44 @@ function drop(e, newDate) {
     let taskData = JSON.parse(e.dataTransfer.getData("text/plain"));
     if (taskData.date === newDate) return;
     let oldDate = taskData.date;
+
+    const snapshot = { ...taskData };
+
     taskData.date = newDate;
     updateTaskRequest(taskData);
     setTimeout(() => rebalanceDayText(oldDate), 50);
+    if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
+
+    scheduleUndo('Заметка перенесена', () => {
+        const back = { ...snapshot, date: oldDate };
+        updateTaskRequest(back);
+        setTimeout(() => rebalanceDayText(newDate), 50);
+        if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
+    });
 }
 
-// Перезапрашивает у бэка список дат, на которые есть заметки.
 async function refreshTaskDates() {
     try {
         let dates = await apiLoadTaskDates();
         taskDatesSet = new Set(dates);
+        if (typeof refreshMiniCalendar === 'function') refreshMiniCalendar();
     } catch (e) { console.error("refreshTaskDates", e); }
+}
+
+// Стагерный рендер списка задач. Задержка в 45 мс между карточками
+// даёт «высыпание» — заметки появляются друг за дружкой.
+function renderTasksStaggered(tasks) {
+    if (!Array.isArray(tasks)) return;
+
+    const byDate = {};
+    tasks.forEach(t => {
+        if (!byDate[t.date]) byDate[t.date] = [];
+        byDate[t.date].push(t);
+    });
+
+    for (const date in byDate) {
+        byDate[date].forEach((t, idx) => {
+            renderTask(t, { stagger: idx });
+        });
+    }
 }
