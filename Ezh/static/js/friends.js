@@ -39,8 +39,11 @@ async function fetchFriends() {
 
 function renderFriendDropdown() {
     let dropdownMenu = document.getElementById('friendTogglesDropdown');
-    dropdownMenu.innerHTML = '';
-    dropdownMenu.innerHTML += `<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider m-0"></li>`;
+
+    // Копим HTML в массив — раньше был `innerHTML +=` на каждую папку и
+    // каждого друга, то есть 20+ перепарсиваний дропдауна подряд.
+    const parts = [];
+    parts.push(`<li><a class="dropdown-item text-danger fw-bold" href="#" onclick="hideAllFriends(event)">🚫 Скрыть всех</a></li><li><hr class="dropdown-divider m-0"></li>`);
 
     let groupsMap = { "": [] };
     customCategories.forEach(c => { if (c) groupsMap[c] = []; });
@@ -68,7 +71,7 @@ function renderFriendDropdown() {
         let catChecked = allVisible ? 'checked' : '';
         let editBtnHtml = !isUnassigned ? `<button class="btn btn-sm btn-link text-secondary p-0 ms-2 text-decoration-none" onclick="editCustomCategory('${escapeJsString(cat)}', event)" title="Переименовать папку">✏️</button>` : '';
 
-        dropdownMenu.innerHTML += `
+        parts.push(`
             <li ondragover="allowDrop(event)" ondrop="handleCategoryDrop(event, '${escapeJsString(cat)}')">
                 <div class="dropdown-item bg-light d-flex justify-content-between align-items-center border-bottom pb-1 pt-1" onclick="toggleFriendGroup('${escapeJsString(cat)}'); event.stopPropagation();">
                     <div class="form-check m-0 flex-grow-1 d-flex align-items-center" style="cursor: pointer;">
@@ -80,11 +83,11 @@ function renderFriendDropdown() {
                     </div>
                 </div>
             </li>
-        `;
+        `);
 
         groupsMap[cat].forEach(f => {
             let isChecked = visibleFriends.has(f.id) ? 'checked' : '';
-            dropdownMenu.innerHTML += `
+            parts.push(`
                 <li draggable="true" ondragstart="handleDropdownDragStart(event, ${f.id})">
                     <div class="dropdown-item d-flex justify-content-between align-items-center py-1" onclick="toggleFriendVisibility(${f.id}); event.stopPropagation();" style="cursor: grab;">
                         <div class="form-check m-0 flex-grow-1 ms-3" style="cursor: pointer;">
@@ -95,15 +98,15 @@ function renderFriendDropdown() {
                         </div>
                     </div>
                 </li>
-            `;
+            `);
         });
     }
 
     if (!hasAnyGroup) {
-        dropdownMenu.innerHTML += '<li><span class="dropdown-item text-muted small text-center d-block py-2">Папок и друзей пока нет</span></li>';
+        parts.push('<li><span class="dropdown-item text-muted small text-center d-block py-2">Папок и друзей пока нет</span></li>');
     }
 
-    dropdownMenu.innerHTML += `
+    parts.push(`
         <li><hr class="dropdown-divider m-0 mt-2"></li>
         <li class="p-2 pb-1">
             <div class="input-group input-group-sm">
@@ -111,7 +114,9 @@ function renderFriendDropdown() {
                 <button class="btn btn-outline-primary fw-bold" type="button" onclick="createNewCategory(event)">+</button>
             </div>
         </li>
-    `;
+    `);
+
+    dropdownMenu.innerHTML = parts.join('');
 }
 
 async function editCustomCategory(oldName, e) {
@@ -424,6 +429,11 @@ function renderFriendsCalendar(dir = null) {
         else if (dir === 'left')  grid.classList.add('slide-left');
         else                      grid.classList.add('fade-in');
 
+        // Собираем HTML всех 7 дней в массив и подставляем одной операцией.
+        // Раньше был `grid.innerHTML += html` в цикле — 7 перепарсиваний
+        // на каждого друга.
+        const dayParts = [];
+
         for (let i = 0; i < 7; i++) {
             let d = new Date(currentBaseDate); d.setDate(d.getDate() + i);
             let dateStr = getLocalDateStr(d);
@@ -504,8 +514,10 @@ function renderFriendsCalendar(dir = null) {
                 html += `<div class="text-muted text-center mt-2" style="font-size: 0.8em;">Выходной</div>`;
             }
             html += `</div>`;
-            grid.innerHTML += html;
+            dayParts.push(html);
         }
+
+        grid.innerHTML = dayParts.join('');
         wrapper.appendChild(grid);
         container.appendChild(wrapper);
     });

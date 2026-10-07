@@ -71,9 +71,15 @@ limiter = Limiter(
 # ============================================================
 #  CSP NONCE
 # ============================================================
+#  Для статики nonce не нужен — там нет inline-скриптов, а CSP
+#  применяется ко всем ответам. Пропуск генерации экономит urandom
+#  на 20+ запросов при каждой загрузке страницы.
 
 @app.before_request
 def _generate_csp_nonce():
+    if request.path.startswith('/static/'):
+        g.csp_nonce = ''
+        return
     g.csp_nonce = secrets.token_urlsafe(16)
 
 
@@ -123,9 +129,14 @@ def _gzip_response(response):
 @app.after_request
 def _security_headers(response):
     nonce = getattr(g, "csp_nonce", "")
+
+    script_src = "script-src 'self' https://cdn.jsdelivr.net"
+    if nonce:
+        script_src = f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net"
+
     csp_parts = [
         "default-src 'self'",
-        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net",
+        script_src,
         "script-src-attr 'unsafe-inline'",
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com data:",
@@ -142,6 +153,14 @@ def _security_headers(response):
     response.headers['Referrer-Policy'] = 'same-origin'
     response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
     response.headers.pop('Server', None)
+
+    # Статика: no-cache означает «кэшируй, но переспрашивай перед использованием».
+    # Flask сам проставляет ETag/Last-Modified для /static/*, поэтому неизменённый
+    # файл возвращается с 304 (десятки байт), а изменённый — скачивается заново.
+    # Это ловит правки JS/CSS без Ctrl+F5 и не жертвует производительностью.
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'no-cache'
+
     return response
 
 
@@ -157,8 +176,16 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_FILE, timeout=30)
         g.db.row_factory = sqlite3.Row
+        # ВАЖНО: PRAGMA в SQLite — per-connection, а не per-database.
+        # Раньше эти параметры выставлялись только в init_db() и терялись
+        # с закрытием init-соединения. Переносим в get_db(), где создаётся
+        # рабочее соединение на каждый запрос.
         g.db.execute("PRAGMA foreign_keys = ON")
         g.db.execute("PRAGMA busy_timeout = 5000")
+        g.db.execute("PRAGMA cache_size = -64000")       # 64 МБ page cache
+        g.db.execute("PRAGMA mmap_size = 268435456")     # 256 МБ memory-mapped I/O
+        g.db.execute("PRAGMA temp_store = MEMORY")
+        g.db.execute("PRAGMA synchronous = NORMAL")
     return g.db
 
 
@@ -521,7 +548,9 @@ def get_schedule_all():
         try:
             tmp = cache_file + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
-                json.dump(schedule, f, ensure_ascii=False, indent=2)
+                # Без indent — файл в разы меньше, а читает его только
+                # браузер и gzip. Экономит и диск, и трафик.
+                json.dump(schedule, f, ensure_ascii=False)
             os.replace(tmp, cache_file)
         except OSError:
             pass
@@ -562,7 +591,7 @@ def sync_schedule():
         try:
             tmp = cache_file + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
-                json.dump(schedule, f, ensure_ascii=False, indent=2)
+                json.dump(schedule, f, ensure_ascii=False)
             os.replace(tmp, cache_file)
         except OSError:
             pass
@@ -893,7 +922,7 @@ def export_ics():
             try:
                 tmp = cache_file + '.tmp'
                 with open(tmp, 'w', encoding='utf-8') as f:
-                    json.dump(schedule, f, ensure_ascii=False, indent=2)
+                    json.dump(schedule, f, ensure_ascii=False)
                 os.replace(tmp, cache_file)
             except OSError:
                 pass

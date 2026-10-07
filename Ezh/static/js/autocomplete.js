@@ -1,4 +1,23 @@
 // T9-автокомплит для полей ввода групп.
+//
+// Оптимизации:
+//   • Debounce 80 мс на input — при быстром вводе не запускаем render()
+//     на каждый keystroke.
+//   • Кэш lowercase-версий всех групп (allGroupsLower). Убирает 500+
+//     .toLowerCase() на каждый символ. Инвалидируется автоматически
+//     при изменении длины allGroups.
+
+const _AC_DEBOUNCE_MS = 80;
+
+// Кэш lowercase-версий allGroups.
+let _allGroupsLowerCache = null;
+
+function _getAllGroupsLower() {
+    if (!_allGroupsLowerCache || _allGroupsLowerCache.length !== allGroups.length) {
+        _allGroupsLowerCache = allGroups.map(g => g.toLowerCase());
+    }
+    return _allGroupsLowerCache;
+}
 
 function initGroupAutocomplete(input) {
     if (!input) return;
@@ -7,6 +26,7 @@ function initGroupAutocomplete(input) {
     dropdown.className = 'autocomplete-list';
     document.body.appendChild(dropdown);
     let currentFocus = -1;
+    let renderTimer = null;
 
     function positionDropdown() {
         let rect = input.getBoundingClientRect();
@@ -26,18 +46,22 @@ function initGroupAutocomplete(input) {
         let query = input.value.trim();
         let lower = query.toLowerCase();
         let matches = [];
+
         if (!lower) {
             matches = allGroups.slice(0, 40);
         } else {
+            // Используем кэш lowercase-строк: 500 .toLowerCase() в горячем
+            // пути заменены на 500 прямых сравнений.
+            const lowerAll = _getAllGroupsLower();
             let starts = [], contains = [];
-            for (let g of allGroups) {
-                let gl = g.toLowerCase();
-                if (gl.startsWith(lower)) starts.push(g);
-                else if (gl.includes(lower)) contains.push(g);
+            for (let i = 0; i < allGroups.length; i++) {
+                const gl = lowerAll[i];
+                if (gl.startsWith(lower)) starts.push(allGroups[i]);
+                else if (gl.includes(lower)) contains.push(allGroups[i]);
             }
             matches = starts.concat(contains).slice(0, 50);
         }
-        let exact = lower && allGroups.some(g => g.toLowerCase() === lower);
+        let exact = lower && _getAllGroupsLower().indexOf(lower) !== -1;
 
         let html = '';
         if (matches.length === 0 && !query) {
@@ -59,8 +83,13 @@ function initGroupAutocomplete(input) {
         currentFocus = -1;
     }
 
+    function renderDebounced() {
+        if (renderTimer) clearTimeout(renderTimer);
+        renderTimer = setTimeout(render, _AC_DEBOUNCE_MS);
+    }
+
     input.addEventListener('focus', () => render());
-    input.addEventListener('input', () => render());
+    input.addEventListener('input', renderDebounced);
     input.addEventListener('blur', () => setTimeout(hide, 180));
 
     input.addEventListener('keydown', (e) => {
@@ -83,7 +112,7 @@ function initGroupAutocomplete(input) {
                 e.stopPropagation();
                 items[currentFocus].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
             } else if (items.length > 0 && input.value.trim()) {
-                let exact = allGroups.some(g => g.toLowerCase() === input.value.trim().toLowerCase());
+                let exact = _getAllGroupsLower().indexOf(input.value.trim().toLowerCase()) !== -1;
                 if (exact) hide();
             }
         } else if (e.key === 'Escape') {
@@ -109,6 +138,7 @@ function initGroupAutocomplete(input) {
                     if (!validGroups.has(name.toUpperCase())) {
                         validGroups.add(name.toUpperCase());
                         allGroups.push(name);
+                        // Кэш инвалидируется по длине автоматически.
                     }
                     input.value = name;
                     hide();

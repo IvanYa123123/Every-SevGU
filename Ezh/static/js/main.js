@@ -112,8 +112,12 @@ async function fetchSemesterData() {
         ]);
         customScheduleItems = customData;
         cachedSchedule = applyTimeFix(data);
-        await updateLabsCache();
-        await fetchSubjectSettings();
+        // updateLabsCache и fetchSubjectSettings друг от друга не зависят
+        // и трогают разные поля состояния — грузим параллельно.
+        await Promise.all([
+            updateLabsCache(),
+            fetchSubjectSettings()
+        ]);
         renderCalendar();
         scheduleLoaded = true;
     } catch (e) {

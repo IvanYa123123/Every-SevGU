@@ -40,6 +40,49 @@ function getCustomItemsForDate(dateStr) {
     return items;
 }
 
+// Компаратор для пары/события по времени начала.
+function _sortItemsByTime(a, b) {
+    let aTime = a.time_range ? a.time_range.split(' - ')[0] : "99:99";
+    let bTime = b.time_range ? b.time_range.split(' - ')[0] : "99:99";
+    return aTime.localeCompare(bTime);
+}
+
+// Карточка события — всегда видна в дне, как заметка.
+function _renderEventCard(ev) {
+    const editBtn = `<span style="cursor:pointer; font-size: 0.9em; margin-left: 6px;" onclick="openCustomScheduleModal('${ev.date}', ${ev.custom_id})" title="Редактировать">✏️</span>`;
+    const teacherInfo = (ev.teacher && showTeacher)
+        ? `<span class="text-muted" style="font-size: 0.85em;">👨‍🏫 ${escapeHtml(ev.teacher)}</span>` : '';
+    const locInfo = (ev.location && showLocation)
+        ? `<span class="text-muted" style="font-size: 0.85em;">🚪 ${escapeHtml(ev.location)}</span>` : '';
+    const extra = (teacherInfo || locInfo)
+        ? `<div class="d-flex gap-2 flex-wrap">${teacherInfo} ${locInfo}</div>` : '';
+    const safeSubject = escapeJsString(ev.lesson || '');
+
+    return `
+        <div class="schedule-item event-card shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2; border-left: 3px solid var(--event-color);">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div><strong class="text-primary">${ev.time_range}</strong> <span class="badge bg-success ms-2" style="font-size: 0.7em;">Событие</span>${editBtn}</div>
+                <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${ev.date}', '${safeSubject}')">+ Заметка</span>
+            </div>
+            <div class="mb-1">${escapeHtml(ev.lesson)}</div>
+            ${extra}
+        </div>
+    `;
+}
+
+// Индексирует расписание по дате один раз — вместо N×7 filter() в рендере.
+function _buildScheduleByDate() {
+    const map = new Map();
+    if (!Array.isArray(cachedSchedule)) return map;
+    for (let i = 0; i < cachedSchedule.length; i++) {
+        const it = cachedSchedule[i];
+        let bucket = map.get(it.date);
+        if (!bucket) { bucket = []; map.set(it.date, bucket); }
+        bucket.push(it);
+    }
+    return map;
+}
+
 async function renderCalendar() {
     const calDir = window._calDir;
     window._calDir = null;
@@ -86,6 +129,10 @@ async function renderCalendar() {
         return;
     }
 
+    // Один проход по cachedSchedule вместо семи filter() в цикле ниже.
+    const scheduleByDate = _buildScheduleByDate();
+    const htmlParts = [];
+
     for (let i = 0; i < 7; i++) {
         let d = new Date(currentBaseDate);
         d.setDate(d.getDate() + i);
@@ -93,20 +140,30 @@ async function renderCalendar() {
         let displayDate = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
 
         let isTodayClass = (dateStr === realTodayStr) ? "day-today" : "";
-        let daySchedule = cachedSchedule.filter(item => item.date === dateStr);
+        let daySchedule = scheduleByDate.get(dateStr) || [];
         let customItems = getCustomItemsForDate(dateStr);
-        daySchedule = daySchedule.concat(customItems);
+        let allItems = daySchedule.concat(customItems);
 
-        daySchedule.sort((a, b) => {
-            let aTime = a.time_range ? a.time_range.split(' - ')[0] : "99:99";
-            let bTime = b.time_range ? b.time_range.split(' - ')[0] : "99:99";
-            return aTime.localeCompare(bTime);
-        });
+        // Разделяем: события показываем всегда (как заметки), пары — в сворачиваемом блоке.
+        let eventItems = allItems.filter(x => x.is_custom && x.is_event);
+        let pairItems  = allItems.filter(x => !(x.is_custom && x.is_event));
 
+        eventItems.sort(_sortItemsByTime);
+        pairItems.sort(_sortItemsByTime);
+
+        // --- Блок событий (всегда виден, идёт ПОД парами) ---
+        let eventsHtml = "";
+        if (eventItems.length > 0) {
+            eventsHtml = '<div class="day-events-block mt-2">';
+            eventItems.forEach(ev => { eventsHtml += _renderEventCard(ev); });
+            eventsHtml += '</div>';
+        }
+
+        // --- Блок пар (сворачивается) ---
         let scheduleHtml = "";
-        if (daySchedule.length > 0) {
-            let startTime = fixTime(daySchedule[0].time_range.split(' - ')[0]);
-            let endTime = fixTime(daySchedule[daySchedule.length - 1].time_range.split(' - ')[1]);
+        if (pairItems.length > 0) {
+            let startTime = fixTime(pairItems[0].time_range.split(' - ')[0]);
+            let endTime = fixTime(pairItems[pairItems.length - 1].time_range.split(' - ')[1]);
             let isExpanded = openDays.has(dateStr);
             let expandedClass = isExpanded ? ' expanded' : '';
             let arrowIcon = isExpanded ? '▲' : '▼';
@@ -119,7 +176,7 @@ async function renderCalendar() {
                     <div class="schedule-details-inner">
             `;
 
-            daySchedule.forEach(item => {
+            pairItems.forEach(item => {
                 let origLesson = item.lesson;
                 let subjectKey = item.is_custom ? origLesson : `${item.lesson} (${item.type_name})`;
                 let safeSubjectKey = escapeJsString(subjectKey);
@@ -169,7 +226,7 @@ async function renderCalendar() {
                     <div class="schedule-item shadow-sm" style="padding: 6px 8px; margin-bottom: 5px; line-height: 1.2; ${customStyle}">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div><strong class="text-primary">${item.time_range}</strong>${typeBadge}${editCustomHtml}</div>
-                            <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', 'Сдать: ${safeTaskSubject}')">+ Заметка</span>
+                            <span class="add-task-btn mt-0" style="font-size: 0.75em;" onclick="createTaskFromSchedule('${item.date}', '${safeTaskSubject}')">+ Заметка</span>
                         </div>
                         <div class="mb-1">${lessonHtml}</div>
                         <div class="d-flex gap-2 flex-wrap">${teacherInfo} ${locInfo}</div>
@@ -177,14 +234,17 @@ async function renderCalendar() {
                 `;
             });
             scheduleHtml += `</div></div>`;
-        } else {
+        } else if (eventItems.length === 0) {
             scheduleHtml = `<div class="empty-state-inline">
                 <span class="empty-state-inline-icon">☕</span>
                 <span>Свободный день</span>
             </div>`;
         }
 
-        cal.innerHTML += `
+        // Копим HTML каждого дня в массив и вставляем всё разом в конце.
+        // Раньше был `cal.innerHTML += ...` в цикле — на 7-й итерации браузер
+        // заново парсил уже существующие 6 колонок. Теперь парсит 1 раз.
+        htmlParts.push(`
             <div class="day-col ${isTodayClass}" id="day-col-${dateStr}" ondragover="allowDrop(event)" ondrop="drop(event, '${dateStr}')">
                 <div class="day-header">
                     <span class="day-nav-center">${displayDate}</span>
@@ -192,6 +252,7 @@ async function renderCalendar() {
 
                 <div class="day-schedule-wrap">
                     <div class="mb-2">${scheduleHtml}</div>
+                    ${eventsHtml}
                 </div>
 
                 <div class="day-tasks-wrap d-flex flex-column" style="flex-grow: 1;">
@@ -218,8 +279,10 @@ async function renderCalendar() {
                     </div>
                 </div>
             </div>
-        `;
+        `);
     }
+
+    cal.innerHTML = htmlParts.join('');
 
     try {
         let tasks = await apiLoadTasks(startStr, endStr);
